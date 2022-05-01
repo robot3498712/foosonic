@@ -30,6 +30,8 @@ While modern desktop apps such as Sonixd look nice and work well enough, there a
 * Session management (playlists, in other words).
 * Web app with a subset of features, displaying cover art.
 
+[wiki](https://github.com/robot3498712/foosonic/wiki/foosonic-wiki) with sample images.
+
 
 ### Technical notes
 
