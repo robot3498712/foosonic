@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+		<link rel="stylesheet" href="/static/style.css">
+		<script src="/static/jquery-3.6.0.min.js"></script>
+		<script src="/static/script.js"></script>
+		<title>foosonic</title>
+	</head>
+	<body>
+		<div id="content">
+			<div class="ctrl-container hidden">
+				<div class="ctrl pad">
+					&nbsp;
+					<span class="ctrlf float-left"><a href="javascript:void(0)">First&nbsp;</a></span>
+					<span class="ctrlp float-left"><a href="javascript:void(0)">&larr;&nbsp;Prev</a></span>
+					<span class="float-left">&nbsp;|&nbsp;</span>
+					<span class="ctrln float-left"><a href="javascript:void(0)">Next&nbsp;&rarr;</a></span>
+					<span class="ctrll float-left"><a href="javascript:void(0)">&nbsp;Last</a></span>
+					<span class="ctrls float-left">
+						&nbsp;
+						<select name="ctrls" id="ctrl-select"></select>
+					</span>
+					<span class="label float-right"></span>
+				</div>
+				<div class="foo-container ctrl-grid-container hidden pad high-border">
+					<div class="grid-element">
+						<span>foo&nbsp;remote&nbsp;&rarr;</span>
+						<br />
+						<span><a class="foo-ctrl" data-client="remote" data-mode="fs" href="javascript:void(0)">file&nbsp;system</a></span>
+						<br />
+						<span><a class="foo-ctrl" data-client="remote" data-mode="stream" href="javascript:void(0)">stream</a></span>
+					</div>
+					<div class="grid-element">
+						<span>foo&nbsp;&rarr;</span>
+						<br />
+						<span><a class="foo-ctrl" data-client="foo" data-mode="fs" href="javascript:void(0)">file&nbsp;system</a></span>
+						<br />
+						<span><a class="foo-ctrl" data-client="foo" data-mode="stream" href="javascript:void(0)">stream</a></span>
+					</div>
+					<div class="grid-element">
+						<span><a id="foo-open" href="javascript:void(0)">open&nbsp;dir</a></span>
+					</div>
+					<div class="grid-element">
+						<span><a id="foo-close" href="javascript:void(0)">&#x00d7;&nbsp;close</a></span>
+					</div>
+				</div>
+			</div>
+			<div class="spacer pad hidden"></div>
+			<div class="spacer pad hidden"></div>
+			<div id="container"></div>
+		</div>
+		<input type="hidden" id="data" value="{{ data }}" />
+		<div id="lightbox" class="lightbox hidden"></div>
+		<div id="curtain" class="curtain hidden"></div>
+	</body>
+</html>

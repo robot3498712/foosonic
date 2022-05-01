@@ -1,0 +1,99 @@
+body {
+	font-family: "Lucida Console", "Courier New", monospace;
+	font-size: min(3vw, 14px);
+}
+.hidden, .hide {
+	display: none;
+}
+.grid-container {
+	display: grid;
+	grid-gap: 1px;
+	grid-template-columns: repeat(auto-fit, minmax(25px, 1fr));
+	border: 1px solid rgba(200, 200, 200, .2);
+}
+.ctrl-grid-container {
+	display: grid;
+	grid-gap: 10px;
+	grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+	border: 1px solid rgba(200, 200, 200, .2);
+}
+img {
+	width: 100%;
+	max-width: 600px;
+}
+p {
+	min-height: 100px;
+	padding: 0px 5px 0px 5px;
+	margin-top: 2px;
+}
+.foo-container p {
+	min-height: 10px;
+}
+a {
+	text-decoration: none;
+}
+a:link {
+	color: black;
+}
+.ctrl-container a:hover {
+	color: #e1e10d;
+}
+.pad {
+	padding: 5px;
+}
+.float-left {
+	float: left;
+}
+.float-right {
+	float: right;
+}
+.highlight {
+	background-color: #e1e10d;
+}
+.high-border {
+	border: 1px solid #e1e10d;
+}
+div.ctrl-container {
+	position: fixed;
+	z-index: 1000;
+	top: 0;
+	width: 99%;
+	background-color: white;
+}
+div.ctrl {
+	background-color: rgba(200, 200, 200, .2);
+}
+select#ctrl-select {
+	cursor: pointer;
+	margin-top: -5px; /* v-align hack */
+}
+/* lightbox start */
+.curtain { 
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: #111 50% 0 no-repeat fixed;
+	z-index: 1001;
+	-moz-opacity: 0.9;
+	opacity: .90;
+	filter: alpha(opacity=90);
+}
+.lightbox {
+	position: fixed;
+	text-align: center;
+	top: 5%;
+	left: 5%;
+	width: 90%;
+	height: 90%;
+	padding: 0px;
+	z-index: 1002;
+	overflow: auto;
+}
+.lightbox img {
+	object-fit: cover;
+	background-color: transparent;
+	z-index: -1;
+} 
+/* lightbox end */
