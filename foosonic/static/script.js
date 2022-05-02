@@ -170,6 +170,12 @@ function onClickAlbum(ev) {
 }
 
 document.addEventListener("DOMContentLoaded", function(event) {
+	if (localStorage.theme == "dark") {
+		document.body.classList.add("dark");
+	} else {
+		document.body.classList.remove("dark");
+	}
+
 	let container = document.getElementById("container");
 	const data = JSON.parse((document.getElementById("data")).value);
 	let overshoot = Object.keys(data).length % 6;
@@ -198,6 +204,11 @@ document.addEventListener("DOMContentLoaded", function(event) {
 	} else {
 		$('.ctrl').html('');
 	}
+
+	$('#dark-mode').click(function() {
+		let result = document.body.classList.toggle("dark");
+		localStorage.theme = result ? "dark" : "light";
+	});
 
 	$('#foo-open').click(function() {
 		$.get(`open/${albumIds[0]}`);
