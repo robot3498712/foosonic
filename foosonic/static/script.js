@@ -53,7 +53,7 @@ var lightbox = {
 	}
 };
 
-function _onNavigate(act) {
+function onNavigate(act) {
 	switch(true) {
 		case act == 'f':
 			if (onpage == 0) return;
@@ -176,15 +176,18 @@ document.addEventListener("DOMContentLoaded", function(event) {
 		document.body.classList.remove("dark");
 	}
 
-	let container = document.getElementById("container");
 	const data = JSON.parse((document.getElementById("data")).value);
-	let overshoot = Object.keys(data).length % 6;
+	let container = document.getElementById("container"),
+		perRow = parseInt(window.innerWidth / 200),
+		perPage = perRow * 12,
+		overshoot = Object.keys(data).length % perRow,
+		i = -1,
+		j = -1,
+		pagedata = []
+	;
 
-	let i = -1;
-	let j = -1;
-	pagedata = [];
 	for (d in data) {
-		if (++i % 72 == 0) {
+		if (++i % perPage == 0) {
 			pagedata[++j] = [];
 		}
 		pagedata[j][d] = data[d];
@@ -193,10 +196,10 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 	if (j) {
 		lastpage = j;
-		$('.ctrlf').click(function() { _onNavigate('f'); });
-		$('.ctrlp').click(function() { _onNavigate('p'); });
-		$('.ctrln').click(function() { _onNavigate('n'); });
-		$('.ctrll').click(function() { _onNavigate('l'); });
+		$('.ctrlf').click(function() { onNavigate('f'); });
+		$('.ctrlp').click(function() { onNavigate('p'); });
+		$('.ctrln').click(function() { onNavigate('n'); });
+		$('.ctrll').click(function() { onNavigate('l'); });
 		$('div.ctrl span.label').html(`page&nbsp;${onpage+1}&nbsp;of&nbsp;${lastpage+1}`);
 		$('div.spacer').show();
 		$('div.ctrl-container').show();
@@ -239,7 +242,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 	let sel = $('#ctrl-select');
 	$(sel).change(function(ev) {
-		_onNavigate(this.value);
+		onNavigate(this.value);
 	});
 
 	i = -1;
@@ -256,7 +259,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 		let row;
 		for (d in pagedata[page]) {
-			if (++i % 6 == 0) {
+			if (++i % perRow == 0) {
 				row = document.createElement("div");
 				row.setAttribute("class", "grid-container");
 				cp.appendChild(row);
@@ -285,7 +288,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
 			p.appendChild(span);
 		}
 		if (page==j && overshoot) { // style fix
-			let fill = 6 - overshoot;
+			let fill = perRow - overshoot;
 			for (let i=0; i<fill; i++) {
 				let col = document.createElement("div");
 				col.setAttribute("class", "grid-element");
