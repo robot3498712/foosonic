@@ -21,7 +21,13 @@ def coverArt(qin, qout, e, _):
 	if data:
 		wnd = tk.Tk()
 		wnd.title(state.alId)
-		img = ImageTk.PhotoImage(Image.open(BytesIO(data)))
+
+		im = Image.open(BytesIO(data))
+		w, h = im.size
+		if w > 600 or h > 600:
+			im.thumbnail((600, 600), Image.ANTIALIAS)
+		img = ImageTk.PhotoImage(im)
+
 		lbl = tk.Label(wnd, image=img).pack()
 
 		t = Thread(target=_destroy, args=[qin, wnd])
