@@ -45,7 +45,7 @@ While modern desktop apps such as Sonixd look nice and work well enough, there a
 
 * Feature: Augment webapp
     * search / filter
-    * style tweaks such as flexible grid (vs. 6 per row, 72 per page), nightmode
+    * style tweaks
 
 * Feature: Help window / manual (a-h)
     * detailing shortcuts and such
