@@ -19,7 +19,7 @@ def manual(qin, qout, e, _):
 	scrollbar.config(command=text.yview)
 	text.config(yscrollcommand=scrollbar.set)
 
-	_text = """space\t\tadd to foobar
+	_text = """ctrl-space\t\tadd to foobar
 alt-o\t\topen directory
 alt-i\t\topen cover art
 alt-w\t\topen web app

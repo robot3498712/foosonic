@@ -141,7 +141,7 @@ function showWait(hide=false) {
 }
 
 function onClickAlbum(ev) {
-	let albumId = $(ev.target).attr('data-src'),
+	let albumId = $(ev.target).closest('a').attr('data-src'),
 		div = $(ev.target).closest('div'),
 		selected = $(div).hasClass('highlight') ? true : false
 	;
@@ -274,18 +274,19 @@ document.addEventListener("DOMContentLoaded", function(event) {
 			img.setAttribute("data-src", `/coverart/250/${d}`);
 			col.appendChild(img);
 
-			let p = document.createElement("p");
-			col.appendChild(p);
-
-			let span = document.createElement("span");
 			let a = document.createElement("a");
 			a.setAttribute("href", "javascript:void(0)");
 			a.setAttribute("data-src", d);
-			$(a).html(pagedata[page][d]).click(function(ev) {
+			$(a).click(function(ev) {
 				onClickAlbum(ev);
 			});
-			span.appendChild(a);
+			col.appendChild(a);
+
+			let p = document.createElement("p");
+			let span = document.createElement("span");
+			$(span).html(pagedata[page][d]);
 			p.appendChild(span);
+			a.appendChild(p);
 		}
 		if (page==j && overshoot) { // style fix
 			let fill = perRow - overshoot;

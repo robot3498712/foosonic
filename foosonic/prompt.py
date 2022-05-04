@@ -196,7 +196,7 @@ def listAlbums(qin, qout, e, _):
 	state = qin.get()
 
 	prompt = inquirer.fuzzy(message="Select %s" % ('session/album' if state.type == 'session' else state.type,), choices=state.choices,
-		long_instruction="+foo: space / open: a-o / cover: a-i / genres: a-g / radio: a-r / web: a-w / sess: a-s / store: c-s",
+		long_instruction="+foo: c-space / open: a-o / cover: a-i / genres: a-g / radio: a-r / web: a-w / sess: a-s / store: c-s",
 		keybindings={"answer": [], "toggle": [], "toggle-all": [{"key": "c-r"}], "toggle-all-true": [], "toggle-exact": [{"key": "c-t"}]},
 		match_exact=True, multiselect=True, default=state.fuzzyText[state.type], style=style, height="100%",
 		transformer=lambda result: f"({len(result)})"
@@ -249,7 +249,7 @@ def listAlbums(qin, qout, e, _):
 		sig = "\x1F"
 		event.app.exit(result=None)
 
-	@prompt.register_kb("space")
+	@prompt.register_kb("c-space")
 	def _handle_add(event):
 		global sig
 		sig = "\x06"
@@ -312,11 +312,11 @@ def listAlbums(qin, qout, e, _):
 def getAlbumDetailsById(qin, qout, e, _):
 	state = qin.get()
 	prompt = inquirer.select(message='Album details', choices=state.alProp, keybindings={"toggle": []},
-		long_instruction="+foo: space / open: a-o / cover: a-i",
+		long_instruction="+foo: c-space / open: a-o / cover: a-i",
 		default=None, show_cursor=False, style=style, height="100%"
 	)
 
-	@prompt.register_kb("space")
+	@prompt.register_kb("c-space")
 	def _handle_add(event):
 		global sig
 		sig = "\x06"
