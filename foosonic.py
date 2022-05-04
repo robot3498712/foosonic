@@ -71,6 +71,11 @@ def wndCoverArt():
 	t.daemon = True
 	t.start()
 
+def wndManual():
+	t = Thread(target=show, args=[window.manual])
+	t.daemon = True
+	t.start()
+
 
 ''' --------------- remotes ---------------  '''
 
@@ -797,13 +802,13 @@ def show(fn):
 		else: break
 
 	sharedState = copy(state)
-	if fn in [prompt.action, prompt.mode, prompt.backToList, prompt.nameSession, prompt.listSessions, prompt.modeSession, prompt.confRmSession, window.coverArt, remote.playlist]:
+	if fn in [prompt.action, prompt.mode, prompt.backToList, prompt.nameSession, prompt.listSessions, prompt.modeSession, prompt.confRmSession, window.coverArt, window.manual, remote.playlist]:
 		sharedState.choices = None
 		sharedState.alProp = None
 		sharedState.mode = args['mode']
 		sharedState.action = args['action'] if 'action' in args else None
 		sharedState.sessmode = args['sessmode'] if 'sessmode' in args else None
-	if fn in [window.coverArt]:
+	if fn in [window.coverArt, window.manual]:
 		wndQs.append(qout)
 	elif fn in [wsgi.webapp]:
 		webProc = (p, qin, qout, evParent, evChild)
@@ -854,6 +859,8 @@ def show(fn):
 			# resolve a request promise; typically takes couple more seconds to complete the playlist transfer
 			# a more sophisticated approach will yield bool result
 			qout.put('')
+		elif r == "\x42":
+			wndManual()
 
 	state.selectedChoice = r.selectedChoice
 	state.selectedChoiceIndex = r.selectedChoiceIndex

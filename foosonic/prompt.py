@@ -112,6 +112,11 @@ def listSessions(qin, qout, e, _):
 		sig = "\x26"
 		event.app.exit(result=prompt.content_control.selection["value"])
 
+	@prompt.register_kb("alt-h")
+	def _handle_manual(event):
+		qout.put("\x42")
+		e.set()
+
 	try:
 		state.selectedChoice = prompt.execute()
 	except KeyboardInterrupt:
@@ -170,6 +175,11 @@ def listGenres(qin, qout, e, _):
 		global sig
 		sig = "\x1F"
 		event.app.exit(result=None)
+
+	@prompt.register_kb("alt-h")
+	def _handle_manual(event):
+		qout.put("\x42")
+		e.set()
 
 	try:
 		state.selectedChoice = prompt.execute()
@@ -259,6 +269,11 @@ def listAlbums(qin, qout, e, _):
 		sig = "\x14"
 		state.selectedChoiceIndex = prompt.content_control.selected_choice_index
 		prompt._handle_enter(event)
+
+	@prompt.register_kb("alt-h")
+	def _handle_manual(event):
+		qout.put("\x42")
+		e.set()
 
 	if state.type == 'session':
 		@prompt.register_kb("delete")

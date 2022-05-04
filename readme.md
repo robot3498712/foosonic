@@ -32,6 +32,8 @@ While modern desktop apps such as Sonixd look nice and work well enough, there a
 
 [wiki](https://github.com/robot3498712/foosonic/wiki/foosonic-wiki) with sample images.
 
+Edit _config.py to get started. alt-h to display manual.
+
 
 ### Technical notes
 
@@ -46,9 +48,6 @@ While modern desktop apps such as Sonixd look nice and work well enough, there a
 * Feature: Augment webapp
     * search / filter
     * style tweaks
-
-* Feature: Help window / manual (a-h)
-    * detailing shortcuts and such
 
 * Feature: Search refinements
 	* such as combinations, for example: query AND year_range AND genre
