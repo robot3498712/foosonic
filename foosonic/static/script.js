@@ -225,15 +225,13 @@ document.addEventListener("DOMContentLoaded", function(event) {
 		;
 		showWait();
 		let reqPromises = [];
-		for (const [_, albumId] of Object.entries(albumIds)) {
-			reqPromises.push(
-				new Promise(function(resolve, reject) {
-					$.get(`add/${client}/${mode}/${albumId}`, function(data) {
-						resolve();
-					});
-				})
-			);
-		}
+		reqPromises.push(
+			new Promise(function(resolve, reject) {
+				$.post(`add/${client}/${mode}`, {ids: albumIds.join(',')}, function(data) {
+					resolve();
+				});
+			})
+		);
 		Promise.all(reqPromises).then(function(resolve) {
 			onCloseFoo();
 			showWait(true);
