@@ -25,6 +25,7 @@ body, .dark {
 }
 .grid-container span {
 	overflow-wrap: break-word;
+	user-select: none;
 }
 .ctrl-grid-container {
 	display: grid;
