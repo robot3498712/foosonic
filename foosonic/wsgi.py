@@ -30,13 +30,13 @@ def _open(id):
 	_evParent.set()
 	return id
 
-@app.route('/add/<client>/<mode>/<id>')
-def _add(client, mode, id):
-	_qout.put("\x20\0%s\0%s\0%s" % (client, mode, id))
+@app.route('/add/<client>/<mode>', methods=['POST'])
+def _add(client, mode):
+	_qout.put("\x20\0%s\0%s\0%s" % (client, mode, request.form['ids']))
 	_evParent.set()
 	try: _ = _qin.get(timeout=10)
 	except: pass
-	return id
+	return 'OK'
 
 @app.route('/')
 def _index():
