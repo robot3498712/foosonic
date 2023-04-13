@@ -20,7 +20,7 @@ class State:
 		self.alId = None
 		self.sess = None
 		self.sig = None
-		self.call = deque([(None,)], maxlen=5)
+		self.call = deque([(None,)])
 		self.serve = u""
 
 
@@ -36,8 +36,8 @@ def is_ascii(text):
 	return True
 
 def playlist(m3ufile, paths):
-	with open(m3ufile, mode="w", encoding="utf8") as f:
-		f.write("\n".join(paths))
+	with open(m3ufile, mode="a", encoding="utf8") as f:
+		f.write("\n".join(paths) + "\n")
 
 def opendir(path):
 	if path and os.name == 'nt':
@@ -141,8 +141,7 @@ def dlgAction(ids=[]):
 		args['action'] = state.selectedChoice
 		args['foo'] = state.selectedChoice
 		state.call.append((dlgBackToList,))
-		for id in ids:
-			state.call.append((add, id))
+		state.call.append((add, ids))
 		if not args['mode'] and state.type != 'radio':
 			state.call.append((dlgMode,))
 
@@ -209,8 +208,7 @@ def listStations():
 
 	if state.sig == "\x06":
 		urls = state.selectedChoice
-		for url in urls:
-			state.call.append((add, url))
+		state.call.append((add, urls))
 		if not args['foo']:
 			return state.call.append((dlgAction, urls))
 		return
@@ -224,8 +222,7 @@ def listStations():
 	if state.sig == "\x1F":
 		return state.call.append((listSessions,))
 
-	for url in state.selectedChoice:
-		state.call.append((add, url))
+	state.call.append((add, state.selectedChoice))
 	if not args['foo']:
 		state.call.append((dlgAction,))
 
@@ -236,8 +233,7 @@ def listAlbums():
 	if state.sig == "\x06":
 		albumIds = state.selectedChoice
 		state.call.append((listAlbums,))
-		for albumId in albumIds:
-			state.call.append((add, albumId))
+		state.call.append((add, albumIds))
 		if not args['foo']:
 			return state.call.append((dlgAction, albumIds))
 		if not args['mode']:
@@ -322,10 +318,7 @@ def getAlbumsByYear(query, _size):
 		_toYear = _q[1].strip()
 	else:
 		_fromYear = _toYear = query
-	if gonicYearRangeBugNotFixed:
-		r = state.conn.getAlbumList('byYear', size=_size, fromYear=_toYear, toYear=_fromYear)
-	else:
-		r = state.conn.getAlbumList('byYear', size=_size, fromYear=_fromYear, toYear=_toYear)
+	r = state.conn.getAlbumList('byYear', size=_size, fromYear=_fromYear, toYear=_toYear)
 	albumDict = {}
 
 	for album in r['albumList']['album']:
@@ -505,7 +498,7 @@ def getAlbumDetailsById(albumId):
 
 		if state.sig == "\x06":
 			state.call.append((getAlbumDetailsById, albumId))
-			state.call.append((add, albumId))
+			state.call.append((add, [albumId]))
 			if not args['mode']:
 				return state.call.append((dlgMode,))
 			return clear()
@@ -519,19 +512,26 @@ def getAlbumDetailsById(albumId):
 
 ''' --------------- store & pipe ---------------  '''
 
-def add(albumId, silent=False):
-	if not albumId: return
-	if not albumId.startswith("http"):
-		if args['mode'] == "stream":
-			fn = addAlbumByIdStream
+def add(albumIds, silent=False):
+	m3ufile = os.path.join(sd, u"./cache/%s.%s" % (int(time()), 'm3u8'))
+	for albumId in albumIds:
+		if not albumId: next
+		if not albumId.startswith("http"):
+			if args['mode'] == "stream":
+				fn = addAlbumByIdStream
+			else:
+				fn = addAlbumById
 		else:
-			fn = addAlbumById
-	else:
-		fn = addStation
-	fn(albumId, True if (args['foo'] and "remote" in args['foo']) else False, silent)
+			fn = addStation
+		fn(albumId, m3ufile, silent)
+	# end FOR
+	if os.path.isfile(m3ufile):
+		if (args['foo'] and "remote" in args['foo']):
+			remotePlaylist(m3ufile)
+		else:
+			p = Popen([cfg.foo, '/add', m3ufile])
 
-def addAlbumById(albumId, _remote=False, _silent=False):
-	m3u8 = False
+def addAlbumById(albumId, m3ufile, _silent=False):
 	paths = []
 	r = state.conn.getAlbum(albumId)
 	if 'album' in r:
@@ -545,22 +545,16 @@ def addAlbumById(albumId, _remote=False, _silent=False):
 						break
 				if not path:
 					path = u"%s%s" % (cfg.pathmap["\0"], p)
-				if not is_ascii(path): m3u8 = True
 				paths.append(path)
 			if len(paths):
-				m3ufile = os.path.join(sd, u"./cache/%s.%s" % (albumId, 'm3u8' if m3u8 else 'm3u'))
 				playlist(m3ufile, paths)
-				if os.path.isfile(m3ufile):
-					if _remote:
-						remotePlaylist(m3ufile)
-					else:
-						p = Popen([cfg.foo, '/add', m3ufile])
-					if not _silent: print(u"adding playlist: %s" % (r['album']['name'],))
+				if os.path.isfile(m3ufile) and not _silent:
+					print(u"adding playlist: %s" % (r['album']['name'],))
 		else:
 			if not _silent: print("failed to add invalid album")
 
-def addAlbumByIdStream(albumId, _remote=False, _silent=False):
-	urls = ['#EXTM3U']
+def addAlbumByIdStream(albumId, m3ufile, _silent=False):
+	urls = ['#EXTM3U'] if not os.path.isfile(m3ufile) else []
 	r = state.conn.getAlbum(albumId)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -573,34 +567,24 @@ def addAlbumByIdStream(albumId, _remote=False, _silent=False):
 				))
 				urls.append(url)
 			if len(urls):
-				m3ufile = os.path.join(sd, u"./cache/%s.m3u8" % (albumId,))
 				playlist(m3ufile, urls)
-				if os.path.isfile(m3ufile):
-					if _remote:
-						remotePlaylist(m3ufile)
-					else:
-						p = Popen([cfg.foo, '/add', m3ufile])
-					if not _silent: print(u"adding playlist: %s" % (r['album']['name'],))
+				if os.path.isfile(m3ufile) and not _silent:
+					print(u"adding playlist: %s" % (r['album']['name'],))
 		else:
 			if not _silent: print("failed to add invalid album")
 
-def addStation(stationUrl, _remote=False, _silent=False):
+def addStation(stationUrl, m3ufile, _silent=False):
 	label = None
 	for k, v in cfg.radio.items():
 		if v == stationUrl:
 			label = k
 			break
-	urls = ['#EXTM3U']
+	urls = ['#EXTM3U'] if not os.path.isfile(m3ufile) else []
 	urls.append(u"#EXTINF:-1,%s - %s" % (label, stationUrl))
 	urls.append(stationUrl)
-	m3ufile = os.path.join(sd, u"./cache/%s.m3u8" % (label,))
 	playlist(m3ufile, urls)
-	if os.path.isfile(m3ufile):
-		if _remote:
-			remotePlaylist(m3ufile)
-		else:
-			p = Popen([cfg.foo, '/add', m3ufile])
-		if not _silent: print(u"adding station: %s" % (label,))
+	if os.path.isfile(m3ufile) and not _silent:
+		print(u"adding station: %s" % (label,))
 
 
 ''' --------------- misc. tasks ---------------  '''
@@ -854,8 +838,8 @@ def show(fn):
 			import webbrowser
 			webbrowser.open("http://%s:%s" % (cfg.server['wsgi']['ip'], cfg.server['wsgi']['port']), new=2, autoraise=True)
 		elif r.startswith("\x20\0"):
-			(_, args['foo'], args['mode'], albumId) = r.split("\0")
-			add(albumId, silent=True)
+			(_, args['foo'], args['mode'], albumIdsStr) = r.split("\0")
+			add(albumIdsStr.split(","), silent=True)
 			# resolve a request promise; typically takes couple more seconds to complete the playlist transfer
 			# a more sophisticated approach will yield bool result
 			qout.put('')
@@ -910,7 +894,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.1.2')
+	parser.add_argument('-v', '--version', action='version', version='0.1.3')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -985,7 +969,7 @@ def main():
 
 	if args['add']:
 		state.call.append((waitProcs,))
-		state.call.append((add, args['add']))
+		state.call.append((add, [args['add']]))
 		dispatch()
 
 	if args['details']:
@@ -1019,9 +1003,6 @@ if __name__ == "__main__":
 	from InquirerPy.base.control import Choice
 	from foosonic import prompt, window, remote, wsgi
 	from _config import cfg
-
-	# this already is fixed in upstream, May '22
-	gonicYearRangeBugNotFixed = True
 
 	sd, args, state = os.path.dirname(os.path.realpath(__file__)), None, None
 	pool, procs, wndQs, evTerm, webProc = deque(maxlen=2), deque(maxlen=20), deque(), None, (None, None, None, None, None)
