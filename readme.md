@@ -1,6 +1,6 @@
 # foosonic
 
-## [0.1.2] (2022-05-01)
+## [0.1.3] (2023-04-13)
 
 
 ### Dependencies & preconditions
@@ -59,7 +59,6 @@ Edit _config.py to get started. alt-h to display manual.
     * Similar to history in webbrowser; possibly requires caching implementation.
 
 * Bugs / Known issues
-    * Create one playlist for multiple items instead of yanking add() through processing.
     * overall exception handling
 
 
