@@ -7,7 +7,7 @@ foosonic client by robot
 
 class State:
 	def __init__(self):
-		self.conn = None
+		self.connector = None
 		self.type = 'album'
 		self.numRes = 0
 		self.choices = []
@@ -298,7 +298,7 @@ def listGenres(_size):
 # @size unlimited
 def getAlbums(ltype, _size):
 	global state
-	r = state.conn.getAlbumList(ltype, size=_size)
+	r = state.connector.conn.getAlbumList(ltype, size=_size)
 	state.choices = []
 	for album in r['albumList']['album']:
 		state.choices.append(Choice(album['id'], name=u"%s/%s" % (album['artist'], album['title'])))
@@ -318,7 +318,7 @@ def getAlbumsByYear(query, _size):
 		_toYear = _q[1].strip()
 	else:
 		_fromYear = _toYear = query
-	r = state.conn.getAlbumList('byYear', size=_size, fromYear=_fromYear, toYear=_toYear)
+	r = state.connector.conn.getAlbumList('byYear', size=_size, fromYear=_fromYear, toYear=_toYear)
 	albumDict = {}
 
 	for album in r['albumList']['album']:
@@ -339,7 +339,7 @@ def getAlbumsByGenres(_size):
 	for genre in state.selectedChoice:
 		i += 1
 		print(u"%s of %i - %s".ljust(70) % (("%s" % (i)).rjust(2), _len, genre), end='\r')
-		r = state.conn.getAlbumList('byGenre', size=_size, genre=genre)
+		r = state.connector.conn.getAlbumList('byGenre', size=_size, genre=genre)
 		for album in r['albumList']['album']:
 			if album['id'] in state.seen: continue
 			albumDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
@@ -378,7 +378,7 @@ def getAlbumsByGenre(query, _size):
 			for genreQuery in genreQueryList:
 				i += 1
 				print(u"%s of %i - %s".ljust(70) % (("%s" % (i)).rjust(2), _len, genreQuery), end='\r')
-				r = state.conn.getAlbumList('byGenre', size=_size, genre=genreQuery)
+				r = state.connector.conn.getAlbumList('byGenre', size=_size, genre=genreQuery)
 				for album in r['albumList']['album']:
 					if album['id'] in state.seen: continue
 					albumDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
@@ -395,7 +395,7 @@ def getAlbumsByGenre(query, _size):
 def getSearch(query, _size):
 	global state
 	albumDict, songDict = {}, {}
-	r = state.conn.search2(query, albumCount=_size, songCount=_size)
+	r = state.connector.conn.search2(query, albumCount=_size, songCount=_size)
 	if 'album' in r['searchResult2']:
 		for album in r['searchResult2']['album']:
 			if album['id'] in state.seen: continue
@@ -412,7 +412,7 @@ def getSearch(query, _size):
 			state.seen.add(song['parent'])
 
 	# tag lookup
-	r = state.conn.search3(query, albumCount=_size, songCount=_size)
+	r = state.connector.conn.search3(query, albumCount=_size, songCount=_size)
 	if 'album' in r['searchResult3']:
 		for album in r['searchResult3']['album']:
 			if album['id'] in state.seen: continue
@@ -447,7 +447,7 @@ def getSearch(query, _size):
 	else: print("no result")
 
 def getAlbumPathById(albumId):
-	r = state.conn.getAlbum(albumId)
+	r = state.connector.conn.getAlbum(albumId)
 	if 'songCount' in r['album'] and r['album']['songCount'] > 0:
 		for song in r['album']['song']:
 			p = song['path']
@@ -464,7 +464,7 @@ def getAlbumPathById(albumId):
 def getAlbumDetailsById(albumId):
 	global state
 	if not albumId: return state.call.pop()
-	r = state.conn.getAlbum(albumId)
+	r = state.connector.conn.getAlbum(albumId)
 	if 'songCount' in r['album'] and r['album']['songCount'] > 0:
 		prop = []
 		albumArtist = None
@@ -533,7 +533,7 @@ def add(albumIds, silent=False):
 
 def addAlbumById(albumId, m3ufile, _silent=False):
 	paths = []
-	r = state.conn.getAlbum(albumId)
+	r = state.connector.conn.getAlbum(albumId)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
 			for song in r['album']['song']:
@@ -555,11 +555,11 @@ def addAlbumById(albumId, m3ufile, _silent=False):
 
 def addAlbumByIdStream(albumId, m3ufile, _silent=False):
 	urls = ['#EXTM3U'] if not os.path.isfile(m3ufile) else []
-	r = state.conn.getAlbum(albumId)
+	r = state.connector.conn.getAlbum(albumId)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
 			for song in r['album']['song']:
-				url = state.conn.stream(song['id'], maxBitRate=192)
+				url = state.connector.conn.stream(song['id'], maxBitRate=192)
 				urls.append(u"#EXTINF:%s,%s - %s" % (
 					song['duration'] if song['duration'] else "-1",
 					song['artist'],
@@ -590,11 +590,11 @@ def addStation(stationUrl, m3ufile, _silent=False):
 ''' --------------- misc. tasks ---------------  '''
 
 def scan():
-	r = state.conn.getScanStatus()
+	r = state.connector.conn.getScanStatus()
 	if r['scanStatus']['scanning']:
 		print('already scanning')
 		return
-	r = state.conn.startScan()
+	r = state.connector.conn.startScan()
 	print(r)
 
 # tbd: streamline & remove duplicated session code (as well see listSessions())
@@ -744,7 +744,7 @@ def getStations():
 	clear()
 
 def updateGenres():
-	r = state.conn.getGenres()
+	r = state.connector.conn.getGenres()
 	if 'genre' in r['genres']:
 		_r = [] # fix here to speed up lookup later
 		for itm in r['genres']['genre']:
@@ -786,6 +786,7 @@ def show(fn):
 		else: break
 
 	sharedState = copy(state)
+	sharedState.connector = None
 	if fn in [prompt.action, prompt.mode, prompt.backToList, prompt.nameSession, prompt.listSessions, prompt.modeSession, prompt.confRmSession, window.coverArt, window.manual, remote.playlist]:
 		sharedState.choices = None
 		sharedState.alProp = None
@@ -796,8 +797,6 @@ def show(fn):
 		wndQs.append(qout)
 	elif fn in [wsgi.webapp]:
 		webProc = (p, qin, qout, evParent, evChild)
-	else:
-		sharedState.conn = None
 	if fn in [remote.playlist, wsgi.webapp]:
 		sharedState.server = cfg.server
 	sharedState.seen = None
@@ -894,7 +893,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.1.3')
+	parser.add_argument('-v', '--version', action='version', version='0.1.4')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -913,12 +912,7 @@ def main():
 	# end argparse
 
 	state = State()
-
-	state.conn = libsoniConn(cfg.server['subsonic']['url'],
-		cfg.server['subsonic']['user'], b64decode(cfg.server['subsonic']['pswd']).decode("utf-8"),
-		port=cfg.server['subsonic']['port'], appName='foosonic', legacyAuth=cfg.server['subsonic']['legacyAuth'],
-		apiVersion=libsonicApiVersion if not cfg.server['subsonic']['apiVersion'] else cfg.server['subsonic']['apiVersion']
-	)
+	state.connector = connection.LibSoniConn()
 
 	try:
 		args['size'] = int(args['size'])
@@ -992,7 +986,6 @@ if __name__ == "__main__":
 	from libsonic import (Connection as libsoniConn, API_VERSION as libsonicApiVersion)
 	from multiprocessing import (Event as mpEvent, Queue as mpQueue, Process)
 	from threading import (Event as tEvent, Thread)
-	from base64 import b64decode
 	from glob import glob
 	from subprocess import call, Popen
 	from argparse import ArgumentParser
@@ -1001,7 +994,7 @@ if __name__ == "__main__":
 	from time import time, strftime, localtime, sleep
 	from math import ceil
 	from InquirerPy.base.control import Choice
-	from foosonic import prompt, window, remote, wsgi
+	from foosonic import prompt, window, remote, wsgi, connection
 	from _config import cfg
 
 	sd, args, state = os.path.dirname(os.path.realpath(__file__)), None, None

@@ -1,5 +1,6 @@
 import io, json, logging, click
 from flask import Flask, render_template, send_file, request
+from foosonic import connection
 
 app, state, _evParent, _qout, _qin = Flask(__name__), None, None, None, None
 
@@ -12,7 +13,7 @@ def _echo(text, file=None, nl=None, err=None, color=None, **styles): pass
 @app.route('/coverart/<size>/<id>')
 def _coverart(id, size=None):
 	try:
-		r = state.conn.getCoverArt(id, size=size)
+		r = state.connector.conn.getCoverArt(id, size=size)
 		data = r.read()
 	except:
 		return send_file(
@@ -49,7 +50,6 @@ def _index():
 			pass
 	return render_template('index.html', data=json.dumps(d))
 
-
 def _update(qin, evChild):
 	global state
 	while True:
@@ -62,6 +62,7 @@ def webapp(qin, qout, evParent, evChild):
 
 	global state, _evParent, _qout, _qin
 	state = qin.get()
+	state.connector = connection.LibSoniConn()
 	evChild.clear()
 	_evParent = evParent
 	_qout = qout

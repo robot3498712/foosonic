@@ -1,6 +1,6 @@
 # foosonic
 
-## [0.1.3] (2023-04-13)
+## [0.1.4] (2023-10-05)
 
 
 ### Dependencies & preconditions
@@ -12,6 +12,7 @@
 * [Foobar2000](https://www.foobar2000.org/)
 
 * Python >= 3.7 | see requirements.txt
+    * py3.12 supported
     * developed on and for Windows, although should work fine on other OS with a few tweaks
 
 

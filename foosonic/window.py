@@ -1,3 +1,5 @@
+from foosonic import connection
+
 def _destroy(qin, h):
 	_ = qin.get()
 	h.destroy()
@@ -54,9 +56,10 @@ def coverArt(qin, qout, e, _):
 	from io import BytesIO
 
 	state = qin.get()
+	state.connector = connection.LibSoniConn()
 
 	try:
-		r = state.conn.getCoverArt(state.alId)
+		r = state.connector.conn.getCoverArt(state.alId)
 	except:
 		qout.put("\x00")
 		e.set()
