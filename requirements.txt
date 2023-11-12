@@ -1,5 +1,6 @@
-click==8.1.2
+click==8.1.7
 Flask==2.1.1
-InquirerPy==0.3.3
-Pillow==9.5.0
-requests==2.27.1
+Werkzeug==2.1.1
+InquirerPy==0.3.4
+Pillow==10.1.0
+requests==2.31.0
