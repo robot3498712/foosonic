@@ -40,7 +40,7 @@ Edit _config.py to get started. alt-h to display manual.
 
 * Focus on multiprocessing and speed / responsiveness. Memory footprint thus is rather high, but there won't be major problems with memory leaks.
 * There's very little error handling, and most exceptions will result in hanging processes. In such case, kill the process via task manager, and fix the issue.
-* prompt_toolkit/InquirerPy isn't perfect. As for console host on windows, default cmd works best, while conemu performed very poorly in my tests. You may try turning off fuzzy prompts and simplifying in general.
+* prompt_toolkit/InquirerPy isn't perfect. As for console host on windows, default cmd (https://math.berkeley.edu/~serganov/ilyaz.org/software/fonts/) / Windows Terminal (Consolas) work best, while conemu performed very poorly in my tests. You may try turning off fuzzy prompts and simplifying in general.
 * [Special keys](https://python-prompt-toolkit.readthedocs.io/en/master/pages/advanced_topics/key_bindings.html#list-of-special-keys)
 
 
