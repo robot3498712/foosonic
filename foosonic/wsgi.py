@@ -15,15 +15,15 @@ def _coverart(id, size=None):
 	try:
 		r = state.connector.conn.getCoverArt(id, size=size)
 		data = r.read()
-	except:
-		return send_file(
-			'./static/lazyload.png',
-			attachment_filename='lazyload.png')
+	except: pass
 	if data:
 		return send_file(
 			io.BytesIO(data),
 			mimetype='image/png',
 			attachment_filename='%s.png' % id)
+	return send_file(
+		'./static/lazyload.png',
+		attachment_filename='lazyload.png')
 
 @app.route('/open/<id>')
 def _open(id):
