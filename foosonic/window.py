@@ -73,7 +73,7 @@ def coverArt(qin, qout, e, _):
 		im = Image.open(BytesIO(data))
 		w, h = im.size
 		if w > 600 or h > 600:
-			im.thumbnail((600, 600), Image.ANTIALIAS)
+			im.thumbnail((600, 600), Image.Resampling.LANCZOS)
 		img = ImageTk.PhotoImage(im)
 
 		_ = tk.Label(wnd, image=img).pack()
