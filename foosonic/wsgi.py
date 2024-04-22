@@ -12,6 +12,7 @@ def _echo(text, file=None, nl=None, err=None, color=None, **styles): pass
 @app.route('/coverart/<id>')
 @app.route('/coverart/<size>/<id>')
 def _coverart(id, size=None):
+	data = None
 	try:
 		r = state.connector.conn.getCoverArt(id, size=size)
 		data = r.read()
