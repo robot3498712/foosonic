@@ -1,6 +1,6 @@
 # foosonic
 
-## [0.1.4] (2024-04-18)
+## [0.1.4] (2024-04-22)
 
 
 ### Dependencies & preconditions
@@ -60,7 +60,8 @@ Edit _config.py to get started. alt-h to display manual.
     * Similar to history in webbrowser; possibly requires caching implementation.
 
 * Bugs / Known issues
-    * overall exception handling
+    * Overall exception handling
+    * Log non-fatal errors instead of printing (notice on exit)
 
 
 ### Acknowledgements
