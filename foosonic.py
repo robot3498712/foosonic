@@ -512,7 +512,7 @@ def add(albumIds, silent=False):
 	m3ufile = os.path.join(sd, u"./cache/%s.%s" % (int(time()), 'm3u8'))
 	for albumId in albumIds:
 		if not albumId: next
-		if not albumId.startswith("http"):
+		if not "://" in albumId:
 			if args['mode'] == "stream":
 				fn = addAlbumByIdStream
 			else:
@@ -889,7 +889,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.1.4')
+	parser.add_argument('-v', '--version', action='version', version='0.1.5')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -963,7 +963,7 @@ def main():
 		dispatch()
 
 	if args['details']:
-		if not args['details'].startswith('http'):
+		if not "://" in args['details']:
 			state.call.append((getAlbumDetailsById, args['details']))
 			dispatch()
 
