@@ -26,15 +26,6 @@ class State:
 
 ''' --------------- helpers ---------------  '''
 
-def is_ascii(text):
-	if isinstance(text, str):
-		try: text.encode('ascii')
-		except UnicodeEncodeError: return False
-	else:
-		try: text.decode('ascii')
-		except UnicodeDecodeError: return False
-	return True
-
 def playlist(m3ufile, paths):
 	with open(m3ufile, mode="a", encoding="utf8") as f:
 		f.write("\n".join(paths) + "\n")
@@ -331,19 +322,25 @@ def getAlbumsByYear(query, _size):
 		clear()
 	else: print("no result")
 
+# threadpool dispatch
+def tGetAlbumsByGenre(genreQuery, _len, _size):
+	global state
+	state.numRes += 1
+	print(u"%s of %i - %s".ljust(70) % (("%s" % (state.numRes)).rjust(2), _len, genreQuery), end='\r')
+	return state.connector.conn.getAlbumList('byGenre', size=_size, genre=genreQuery)
+
 def getAlbumsByGenres(_size):
 	global state
 	state.selectedChoiceIndex, state.choices, state.seen, albumDict = -1, [], set(), {}
 
-	i, _len = 0, len(state.selectedChoice)
-	for genre in state.selectedChoice:
-		i += 1
-		print(u"%s of %i - %s".ljust(70) % (("%s" % (i)).rjust(2), _len, genre), end='\r')
-		r = state.connector.conn.getAlbumList('byGenre', size=_size, genre=genre)
-		for album in r['albumList']['album']:
-			if album['id'] in state.seen: continue
-			albumDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
-			state.seen.add(album['id'])
+	tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _len=len(state.selectedChoice), _size=_size)
+	state.numRes = 0 # reused as counter
+	with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
+		for r in exe.map(tGetAlbumsByGenreP, state.selectedChoice):
+			for album in r['albumList']['album']:
+				if album['id'] in state.seen: continue
+				albumDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
+				state.seen.add(album['id'])
 
 	for key in sorted(albumDict.keys()):
 		state.choices.append(Choice(albumDict[key], name=key))
@@ -374,11 +371,10 @@ def getAlbumsByGenre(query, _size):
 			if _len > 99:
 				print("too many matching genres (%i)" % (_len,))
 				return
-			i = 0
-			for genreQuery in genreQueryList:
-				i += 1
-				print(u"%s of %i - %s".ljust(70) % (("%s" % (i)).rjust(2), _len, genreQuery), end='\r')
-				r = state.connector.conn.getAlbumList('byGenre', size=_size, genre=genreQuery)
+		tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _len=_len, _size=_size)
+		state.numRes = 0 # reused as counter
+		with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
+			for r in exe.map(tGetAlbumsByGenreP, genreQueryList):
 				for album in r['albumList']['album']:
 					if album['id'] in state.seen: continue
 					albumDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
@@ -983,9 +979,10 @@ def main():
 
 if __name__ == "__main__":
 	import sys, os, pickle
-	from libsonic import (Connection as libsoniConn, API_VERSION as libsonicApiVersion)
 	from multiprocessing import (Event as mpEvent, Queue as mpQueue, Process)
 	from threading import (Event as tEvent, Thread)
+	from concurrent.futures import ThreadPoolExecutor
+	from functools import partial
 	from glob import glob
 	from subprocess import call, Popen
 	from argparse import ArgumentParser
