@@ -2,6 +2,14 @@
 class Object(object): pass
 cfg = Object()
 
+'''
+performance tweaks
+	searchThreads -> concurrent genre search threads
+'''
+cfg.perf = {
+	'searchThreads': 3
+}
+
 # path to local foobar2000.exe
 cfg.foo = 'C:/Program Files/Foobar2000/foobar2000.exe'
 
