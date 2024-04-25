@@ -5,9 +5,12 @@ cfg = Object()
 '''
 performance tweaks
 	searchThreads -> concurrent genre search threads
+	addThreads -> concurrent add threads
+		expect a 2x speedup with ~5 threads; add order will be somewhat indeterministic if >1
 '''
 cfg.perf = {
-	'searchThreads': 3
+	'searchThreads': 3,
+	'addThreads': 1
 }
 
 # path to local foobar2000.exe

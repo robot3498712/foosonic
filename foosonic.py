@@ -22,13 +22,10 @@ class State:
 		self.sig = None
 		self.call = deque([(None,)])
 		self.serve = u""
+		self.fh = None
 
 
 ''' --------------- helpers ---------------  '''
-
-def playlist(m3ufile, paths):
-	with open(m3ufile, mode="a", encoding="utf8") as f:
-		f.write("\n".join(paths) + "\n")
 
 def opendir(path):
 	if path and os.name == 'nt':
@@ -195,10 +192,10 @@ def listSessions():
 
 def listStations():
 	show(prompt.listAlbums)
-	state.call.append((listStations,))
 
 	if state.sig == "\x06":
 		urls = state.selectedChoice
+		state.call.append((listStations,))
 		state.call.append((add, urls))
 		if not args['foo']:
 			return state.call.append((dlgAction, urls))
@@ -213,9 +210,7 @@ def listStations():
 	if state.sig == "\x1F":
 		return state.call.append((listSessions,))
 
-	state.call.append((add, state.selectedChoice))
-	if not args['foo']:
-		state.call.append((dlgAction,))
+	state.call.append((dlgAction,))
 
 def listAlbums():
 	webapp()
@@ -509,27 +504,39 @@ def getAlbumDetailsById(albumId):
 ''' --------------- store & pipe ---------------  '''
 
 def add(albumIds, silent=False):
-	m3ufile = os.path.join(sd, u"./cache/%s.%s" % (int(time()), 'm3u8'))
-	for albumId in albumIds:
-		if not albumId: next
-		if not "://" in albumId:
-			if args['mode'] == "stream":
-				fn = addAlbumByIdStream
+	global state
+	fnx, m3ufile = [], os.path.join(sd, u"./cache/%s.%s" % (int(time()), 'm3u8'))
+	header = False
+	with open(m3ufile, mode="a", encoding="utf8") as state.fh:
+		for albumId in albumIds:
+			if not albumId: next
+			if not "://" in albumId:
+				if args['mode'] == "stream":
+					fn = tAddAlbumByIdStream
+					if not header: header = state.fh.write("#EXTM3U\n")
+				else:
+					fn = tAddAlbumById
 			else:
-				fn = addAlbumById
-		else:
-			fn = addStation
-		fn(albumId, m3ufile, silent)
-	# end FOR
-	if os.path.isfile(m3ufile):
+				fn = tAddStation
+				if not header: header = state.fh.write("#EXTM3U\n")
+			fnx.append(partial(fn, id=albumId, silent=silent))
+		# end FOR
+		with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
+			for fn in fnx: exe.submit(fn)
+	# end WITH_OPEN
+	state.fh = None
+	try:
+		if os.stat(m3ufile).st_size < 12: raise ValueError
 		if (args['foo'] and "remote" in args['foo']):
 			remotePlaylist(m3ufile)
 		else:
 			p = Popen([cfg.foo, '/add', m3ufile])
+	except:
+		if not silent: print("unknown error adding playlist")
 
-def addAlbumById(albumId, m3ufile, _silent=False):
-	paths = []
-	r = state.connector.conn.getAlbum(albumId)
+# threadpool dispatch
+def tAddAlbumById(id, silent=False):
+	paths, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
 			for song in r['album']['song']:
@@ -543,15 +550,13 @@ def addAlbumById(albumId, m3ufile, _silent=False):
 					path = u"%s%s" % (cfg.pathmap["\0"], p)
 				paths.append(path)
 			if len(paths):
-				playlist(m3ufile, paths)
-				if os.path.isfile(m3ufile) and not _silent:
-					print(u"adding playlist: %s" % (r['album']['name'],))
+				state.fh.write("\n".join(paths) + "\n")
+				if not silent: print(u"adding playlist: %s" % (r['album']['name'],))
 		else:
-			if not _silent: print("failed to add invalid album")
+			if not silent: print("failed to add invalid album")
 
-def addAlbumByIdStream(albumId, m3ufile, _silent=False):
-	urls = ['#EXTM3U'] if not os.path.isfile(m3ufile) else []
-	r = state.connector.conn.getAlbum(albumId)
+def tAddAlbumByIdStream(id, silent=False):
+	urls, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
 			for song in r['album']['song']:
@@ -563,24 +568,21 @@ def addAlbumByIdStream(albumId, m3ufile, _silent=False):
 				))
 				urls.append(url)
 			if len(urls):
-				playlist(m3ufile, urls)
-				if os.path.isfile(m3ufile) and not _silent:
-					print(u"adding playlist: %s" % (r['album']['name'],))
+				state.fh.write("\n".join(urls) + "\n")
+				if not silent: print(u"adding playlist: %s" % (r['album']['name'],))
 		else:
-			if not _silent: print("failed to add invalid album")
+			if not silent: print("failed to add invalid album")
 
-def addStation(stationUrl, m3ufile, _silent=False):
-	label = None
+def tAddStation(id, silent=False):
+	urls, label = [], None
 	for k, v in cfg.radio.items():
-		if v == stationUrl:
+		if v == id:
 			label = k
 			break
-	urls = ['#EXTM3U'] if not os.path.isfile(m3ufile) else []
-	urls.append(u"#EXTINF:-1,%s - %s" % (label, stationUrl))
-	urls.append(stationUrl)
-	playlist(m3ufile, urls)
-	if os.path.isfile(m3ufile) and not _silent:
-		print(u"adding station: %s" % (label,))
+	urls.append(u"#EXTINF:-1,%s - %s" % (label, id))
+	urls.append(id)
+	state.fh.write("\n".join(urls) + "\n")
+	if not silent: print(u"adding station: %s" % (label,))
 
 
 ''' --------------- misc. tasks ---------------  '''
