@@ -556,16 +556,18 @@ def tAddAlbumById(id, silent=False):
 			if not silent: print("failed to add invalid album")
 
 def tAddAlbumByIdStream(id, silent=False):
-	album, urls, r = None, [], state.connector.conn.getAlbum(id)
+	urls, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
-		if r['album']['name']: album = u"%s" % (r['album']['name'],)
-		elif r['album']['title']: album = u"%s" % (r['album']['title'],)
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
+			af = lambda x: (x if len(x) <= 30 else strip(x[:30])) + " ~ "
+			if r['album']['name']: album = af(u"%s" % (r['album']['name'],))
+			elif r['album']['title']: album = af(u"%s" % (r['album']['title'],))
+			else: album = u""
 			for song in r['album']['song']:
 				url = state.connector.conn.stream(song['id'], maxBitRate=192)
 				urls.append(u"#EXTINF:%s,%s%s - %s" % (
 					song['duration'] if song['duration'] else "-1",
-					u"" if not album else (album if len(album) <= 30 else strip(album[:30])) + " ~ ",
+					album,
 					song['artist'],
 					song['title']
 				))
