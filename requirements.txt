@@ -1,6 +1,6 @@
 click==8.1.7
-Flask==2.1.1
-Werkzeug==2.1.1
+Flask==3.0.3
+Werkzeug==3.0.2
 InquirerPy==0.3.4
-Pillow==10.1.0
+Pillow==10.3.0
 requests==2.31.0

@@ -21,10 +21,10 @@ def _coverart(id, size=None):
 		return send_file(
 			io.BytesIO(data),
 			mimetype='image/png',
-			attachment_filename='%s.png' % id)
+			download_name='%s.png' % id)
 	return send_file(
 		'./static/lazyload.png',
-		attachment_filename='lazyload.png')
+		download_name='lazyload.png')
 
 @app.route('/open/<id>')
 def _open(id):
