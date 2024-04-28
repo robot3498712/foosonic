@@ -28,8 +28,9 @@ class State:
 ''' --------------- helpers ---------------  '''
 
 def opendir(path):
-	if path and os.name == 'nt':
-		os.startfile(path)
+	if not path: return
+	if os.name == 'nt': return os.startfile(path)
+	if os.name == 'posix': return Popen(["xdg-open", path])
 
 def clean():
 	for f in glob(sd + './cache/*.m3u*'): os.remove(f)
@@ -860,11 +861,12 @@ def show(fn):
 
 def procMan():
 	global pool, procs, evTerm
+	tty = True if os.name == 'posix' else False
 	while not evTerm.is_set():
 		if not len(pool):
 			evChild, evParent = mpEvent(), mpEvent()
 			qin, qout = mpQueue(), mpQueue()
-			p = Process(target=prompt.proc, args=(qin, qout, evParent, evChild))
+			p = Process(target=prompt.proc, args=(qin, qout, evParent, evChild, tty))
 			pool.append([p, qin, qout, evParent, evChild])
 			procs.append(p)
 			p.start()
