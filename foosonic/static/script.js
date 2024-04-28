@@ -223,19 +223,19 @@ document.addEventListener("DOMContentLoaded", function(event) {
 		let client = $(ev.target).attr('data-client'),
 			mode = $(ev.target).attr('data-mode')
 		;
-		showWait();
-		let reqPromises = [];
-		reqPromises.push(
-			new Promise(function(resolve, reject) {
-				$.post(`add/${client}/${mode}`, {ids: albumIds.join(',')}, function(data) {
-					resolve();
-				});
-			})
-		);
-		Promise.all(reqPromises).then(function(resolve) {
+		(async function() {
+			showWait();
+			const controller = new AbortController();
+			const _ = setTimeout(() => controller.abort(), 5000);
+			let fd = new FormData();
+			fd.append('ids', albumIds.join(','));
+			await fetch(`add/${client}/${mode}`, {
+					method: 'POST', body: fd, signal: controller.signal
+				}).catch(error => { alert("request error or timeout"); })
+			;
 			onCloseFoo();
 			showWait(true);
-		});
+		})();
 	});
 
 	let sel = $('#ctrl-select');
