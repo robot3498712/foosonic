@@ -472,7 +472,7 @@ def getSearch(query, _size, _all=False):
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		state.choices.append(Choice(0, name="%s Songs" % ('=' * 50)))
+		state.choices.append(Choice(0, name="%s" % ('~' * 50)))
 	for key in sorted(songDict.keys()):
 		state.choices.append(Choice(songDict[key], name=key))
 
@@ -710,7 +710,7 @@ def trimSession():
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		state.choices.append(Choice(None, name="%s Songs" % ('=' * 50)))
+		state.choices.append(Choice(None, name="%s" % ('~' * 50)))
 	for key in sorted(songDict.keys()):
 		state.choices.append(Choice(songDict[key], name=key))
 
@@ -764,7 +764,7 @@ def getSessionChoices(alDict={}, songDict={}, selected=False, alIds=[]):
 	for key in sorted(alDict.keys()):
 		choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		choices.append(Choice(None, name="%s Songs" % ('=' * 50)))
+		choices.append(Choice(None, name="%s" % ('~' * 50)))
 	for key in sorted(songDict.keys()):
 		choices.append(Choice(songDict[key], name=key))
 	return choices
@@ -932,8 +932,7 @@ def dispatch(exit=True, mp=True):
 	while True:
 		fn, *args = state.call.pop()
 		if not fn: break
-		try: fn(*args)
-		except: break
+		fn(*args)
 	evTerm.set()
 	if exit: sys.exit(0)
 
@@ -1040,7 +1039,7 @@ if __name__ == "__main__":
 	import sys, os, pickle
 	from multiprocessing import (Event as mpEvent, Queue as mpQueue, Process)
 	from threading import Thread
-	from concurrent.futures import ThreadPoolExecutor, thread
+	from concurrent.futures import ThreadPoolExecutor
 	from functools import partial
 	from glob import glob
 	from subprocess import call, Popen
