@@ -19,11 +19,15 @@ style = get_style({
 
 # general purpose multiprocessing target
 # placed in this module to speed up rather sluggish prompt instantiation
-def proc(qout, qin, evParent, evChild, tty):
+def proc(qout, qin, evParent, evChild, evTerm, tty):
 	if tty:
 		import sys
 		sys.stdin = open('/dev/tty', 'r')
-	evChild.wait()
+	try: # handle search abort
+		evChild.wait()
+	except KeyboardInterrupt:
+		evTerm.set()
+		return
 	fn = qin.get()
 	fn(qin, qout, evParent, evChild)
 

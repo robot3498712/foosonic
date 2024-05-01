@@ -4,7 +4,7 @@ cfg = Object()
 
 '''
 performance tweaks
-	searchThreads -> concurrent genre search threads
+	searchThreads -> concurrent genre/artist search threads
 	addThreads -> concurrent add threads
 		expect a 2x speedup with ~5 threads; add order will be somewhat indeterministic if >1
 '''
