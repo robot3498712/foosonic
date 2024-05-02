@@ -20,7 +20,7 @@ class State:
 		self.alId = None
 		self.sess = None
 		self.sig = None
-		self.call = deque([(None,)])
+		self.call = deque([lambda: None])
 		self.serve = u""
 		self.fh = None
 		self._data = {}
@@ -96,14 +96,14 @@ def dlgBackToList():
 	show(prompt.backToList)
 	if state.selectedChoice:
 		fn = listStations if state.type == "radio" else listAlbums
-		state.call.append((fn,))
+		state.call.append(lambda: fn())
 		clear()
 
 def dlgMode():
 	show(prompt.mode)
 	if state.sig == "\x08":
 		clear()
-		return state.call.append((listAlbums,))
+		return state.call.append(lambda: listAlbums())
 	if state.selectedChoice in ["stream", "file system"]:
 		args['mode'] = state.selectedChoice
 
@@ -113,27 +113,27 @@ def dlgAction(ids=[]):
 	show(prompt.action)
 	if state.sig == "\x08":
 		clear()
-		return state.call.append((listAlbums,))
+		return state.call.append(lambda: listAlbums())
 
 	if state.sig == "\x05":
 		clear()
-		state.call.append((dlgAction, ids))
-		return state.call.append((dlgMode,))
+		state.call.append(lambda: dlgAction(ids))
+		return state.call.append(lambda: dlgMode())
 
 	if state.selectedChoice == "print details":
 		if state.type == 'radio': # just ignore it
 			return state.call.pop()
 		args['action'] = state.selectedChoice
-		state.call.append((dlgBackToList,))
-		return state.call.append((getAlbumDetailsById, ids[0]))
+		state.call.append(lambda: dlgBackToList())
+		return state.call.append(lambda: getAlbumDetailsById(ids[0]))
 
 	if state.selectedChoice.startswith("add to foobar"):
 		args['action'] = state.selectedChoice
 		args['foo'] = state.selectedChoice
-		state.call.append((dlgBackToList,))
-		state.call.append((add, ids))
+		state.call.append(lambda: dlgBackToList())
+		state.call.append(lambda: add(ids))
 		if not args['mode'] and state.type != 'radio':
-			state.call.append((dlgMode,))
+			state.call.append(lambda: dlgMode())
 
 
 ''' --------------- list views ---------------  '''
@@ -154,11 +154,11 @@ def listSessions():
 		if state.sig == "\x08":
 			if not len(state.choices): return
 			clear()
-			return state.call.append((listAlbums,))
+			return state.call.append(lambda: listAlbums())
 
 		if state.sig == "\x2B":
 			print("can't make empty list. use c-s to select and store")
-			return state.call.append((listSessions,))
+			return state.call.append(lambda: listSessions())
 
 		if state.sig == "\x15":
 			fp = state.selectedChoice
@@ -167,11 +167,11 @@ def listSessions():
 				state.sessions = []
 				os.remove(fp)
 			clear()
-			return state.call.append((listSessions,))
+			return state.call.append(lambda: listSessions())
 
 		if state.sig == "\x26":
 			fp = state.selectedChoice
-			state.call.append((listSessions,))
+			state.call.append(lambda: listSessions())
 			with open(fp, mode="rb") as f: sess = pickle.load(f)
 			self.fuzzyText['session'] = sess['name']
 			show(prompt.nameSession)
@@ -189,7 +189,7 @@ def listSessions():
 		if numRes := len(state.choices):
 			state.numRes = numRes
 			state.sess = state.selectedChoice
-			state.call.append((listAlbums,))
+			state.call.append(lambda: listAlbums())
 			clear()
 
 def listStations():
@@ -197,22 +197,22 @@ def listStations():
 
 	if state.sig == "\x06":
 		urls = state.selectedChoice
-		state.call.append((listStations,))
-		state.call.append((add, urls))
+		state.call.append(lambda: listStations())
+		state.call.append(lambda: add(urls))
 		if not args['foo']:
-			return state.call.append((dlgAction, urls))
+			return state.call.append(lambda: dlgAction(urls))
 		return
 
 	if state.sig == "\x08":
 		return clear()
 
 	if state.sig == "\x1D":
-		return state.call.append((listGenres, 999999))
+		return state.call.append(lambda: listGenres())
 
 	if state.sig == "\x1F":
-		return state.call.append((listSessions,))
+		return state.call.append(lambda: listSessions())
 
-	state.call.append((dlgAction,))
+	state.call.append(lambda: dlgAction())
 
 def listAlbums():
 	webapp()
@@ -220,38 +220,38 @@ def listAlbums():
 
 	if state.sig == "\x06":
 		alIDs = state.selectedChoice
-		state.call.append((listAlbums,))
-		state.call.append((add, alIDs))
+		state.call.append(lambda: listAlbums())
+		state.call.append(lambda: add(alIDs))
 		if not args['foo']:
-			return state.call.append((dlgAction, alIDs))
+			return state.call.append(lambda: dlgAction(alIDs))
 		if not args['mode']:
-			return state.call.append((dlgMode,))
+			return state.call.append(lambda: dlgMode())
 		return
 
 	if state.sig == "\x08":
 		clear()
-		return state.call.append((listAlbums,))
+		return state.call.append(lambda: listAlbums())
 
 	if state.sig == "\x1D":
-		return state.call.append((listGenres, 999999))
+		return state.call.append(lambda: listGenres())
 
 	if state.sig == "\x1E":
-		return state.call.append((getStations,))
+		return state.call.append(lambda: getStations())
 
 	if state.sig == "\x1F":
-		return state.call.append((listSessions,))
+		return state.call.append(lambda: listSessions())
 
 	if state.sig == "\x14":
-		return state.call.append((getSessions,))
+		return state.call.append(lambda: getSessions())
 
 	if state.sig == "\x15":
 		if trimSession():
-			return state.call.append((listAlbums,))
-		return state.call.append((listSessions,))
+			return state.call.append(lambda: listAlbums())
+		return state.call.append(lambda: listSessions())
 
-	state.call.append((dlgAction,))
+	state.call.append(lambda: dlgAction())
 
-def listGenres(_size):
+def listGenres():
 	global state
 	state.type = 'album'
 	genrescache = os.path.join(sd, './cache/genres.obj')
@@ -270,15 +270,15 @@ def listGenres(_size):
 		show(prompt.listGenres)
 
 		if state.sig == "\x08":
-			return state.call.append((listGenres, 999999))
+			return state.call.append(lambda: listGenres())
 
 		if state.sig == "\x1E":
-			return state.call.append((getStations,))
+			return state.call.append(lambda: getStations())
 
 		if state.sig == "\x1F":
-			return state.call.append((listSessions,))
+			return state.call.append(lambda: listSessions())
 
-		state.call.append((getAlbumsByGenres, _size))
+		state.call.append(lambda: getAlbumsByGenres(state._size))
 
 
 ''' --------------- search & fetch sets ---------------  '''
@@ -292,7 +292,7 @@ def getAlbums(ltype, _size):
 		state.choices.append(Choice(album['id'], name=u"%s/%s" % (album['artist'], album['title'])))
 	if numRes := len(state.choices):
 		state.numRes = numRes
-		state.call.append((listAlbums,))
+		state.call.append(lambda: listAlbums())
 		clear()
 	else: print("no result")
 
@@ -315,7 +315,7 @@ def getAlbumsByYear(query, _size):
 		state.choices.append(Choice(alDict[key], name=key))
 	if numRes := len(state.choices):
 		state.numRes = numRes
-		state.call.append((listAlbums,))
+		state.call.append(lambda: listAlbums())
 		clear()
 	else: print("no result")
 
@@ -344,10 +344,10 @@ def getAlbumsByGenres(_size):
 		state.choices.append(Choice(alDict[key], name=key))
 	if numRes := len(state.choices):
 		state.numRes = numRes
-		state.call.append((listAlbums,))
+		state.call.append(lambda: listAlbums())
 		clear()
 	else:
-		state.call.append((listGenres, 999999))
+		state.call.append(lambda: listGenres())
 
 # @size unlimited
 # @query exact genre needed, and no combinations
@@ -379,7 +379,7 @@ def getAlbumsByGenre(query, _size):
 		state.choices.append(Choice(alDict[key], name=key))
 	if numRes := len(state.choices):
 		state.numRes = numRes
-		state.call.append((listAlbums,))
+		state.call.append(lambda: listAlbums())
 		clear()
 	else: print("no result")
 
@@ -478,7 +478,7 @@ def getSearch(query, _size, _all=False):
 
 	if numRes := len(state.choices):
 		state.numRes = numRes if not len(songDict) else numRes-1
-		state.call.append((listAlbums,))
+		state.call.append(lambda: listAlbums())
 		clear()
 	else: print("no result")
 
@@ -533,14 +533,14 @@ def getAlbumDetailsById(id):
 		show(prompt.getAlbumDetailsById)
 
 		if state.sig == "\x06":
-			state.call.append((getAlbumDetailsById, id))
-			state.call.append((add, [id]))
+			state.call.append(lambda: getAlbumDetailsById(id))
+			state.call.append(lambda: add([id]))
 			if not args['mode']:
-				return state.call.append((dlgMode,))
+				return state.call.append(lambda: dlgMode())
 			return clear()
 
 		if state.sig == "\x08":
-			state.call.append((listAlbums,))
+			state.call.append(lambda: listAlbums())
 			clear()
 	else:
 		print("invalid album or songcount is zero")
@@ -653,7 +653,7 @@ def getSessions():
 
 	alIds = state.selectedChoice
 
-	state.call.append((listAlbums,))
+	state.call.append(lambda: listAlbums())
 	show(prompt.modeSession)
 	if state.sig == "\x08":
 		return clear()
@@ -788,7 +788,7 @@ def getStations():
 		state.choices.append(Choice(v, name=k))
 	state.type = 'radio'
 	state.numRes = len(cfg.radio)
-	state.call.append((listStations,))
+	state.call.append(lambda: listStations())
 	clear()
 
 def updateGenres():
@@ -930,9 +930,11 @@ def dispatch(exit=True, mp=True):
 		t = Thread(target=procMan)
 		t.start()
 	while True:
-		fn, *args = state.call.pop()
-		if not fn: break
-		fn(*args)
+		try:
+			_call = state.call.pop()
+			if not _call: raise IndexError
+		except IndexError: break
+		_call()
 	evTerm.set()
 	if exit: sys.exit(0)
 
@@ -965,72 +967,76 @@ def main():
 	state.connector = connection.LibSoniConn()
 
 	try:
-		args['size'] = int(args['size'])
+		args['size'] = _size = int(args['size'])
 		if args['size'] <= 0: raise ValueError
 	except:
 		args['size'] = 25
+		_size = sys.maxsize
 	finally:
 		state.size = args['size']
+		state._size = _size
+
+	if args['searchall']:
+		args['search'] = args['searchall']
+		searchall = True
+	else:
+		searchall = False
 
 	if args['mode']:
 		if (args['mode'] == 'stream' or args['mode'] == 'fs'): pass
 		else: args['mode'] = 'fs'
 
 	if args['radio']:
-		state.call.append((getStations,))
+		state.call.append(lambda: getStations())
 		dispatch()
 
 	if args['updategenres']:
 		print("updating genres..")
-		state.call.append((updateGenres,))
+		state.call.append(lambda: updateGenres())
 		dispatch(exit=False, mp=False)
 		print("done")
 		sys.exit(0)
 
 	if args['scan']:
-		state.call.append((scan,))
+		state.call.append(lambda: scan())
 		dispatch(mp=False)
 
 	if args['year']:
-		state.call.append((getAlbumsByYear, args['year'], 500))
+		state.call.append(lambda: getAlbumsByYear(args['year'], state._size))
 		dispatch()
 
 	if args['genre']:
-		state.call.append((getAlbumsByGenre, args['genre'], 500))
+		state.call.append(lambda: getAlbumsByGenre(args['genre'], state._size))
 		dispatch()
 
 	if args['genres']:
-		state.call.append((listGenres, 999999))
+		state.call.append(lambda: listGenres())
 		dispatch()
 
 	if args['sessions']:
-		state.call.append((listSessions,))
+		state.call.append(lambda: listSessions())
 		dispatch()
 
 	if args['search']:
-		state.call.append((getSearch, args['search'], state.size))
-		dispatch()
-
-	if args['searchall']:
-		state.call.append((getSearch, args['searchall'], state.size, True))
+		state.call.append(lambda: getSearch(args['search'], state._size, _all=searchall))
 		dispatch()
 
 	if args['add']:
-		state.call.append((waitProcs,))
-		state.call.append((add, [args['add']]))
+		state.call.append(lambda: waitProcs())
+		state.call.append(lambda: add([args['add']]))
 		dispatch()
 
 	if args['details']:
 		if not "://" in args['details']:
-			state.call.append((getAlbumDetailsById, args['details']))
+			state.call.append(lambda: getAlbumDetailsById(args['details']))
 			dispatch()
 
 	if args['random']:
-		state.call.append((getAlbums, 'random', state.size))
+		state.call.append(lambda: getAlbums('random', state.size))
 		dispatch()
 
 	# default mode
-	state.call.append((getAlbums, 'newest', state.size))
+	state.call.append(lambda: getAlbums('newest', state.size))
 	dispatch()
 
 # end main()
