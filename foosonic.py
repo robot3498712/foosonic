@@ -23,7 +23,61 @@ class State:
 		self.call = deque([lambda: None])
 		self.serve = u""
 		self.fh = None
-		self._data = {}
+
+class Page:
+	def __init__(self, key, size):
+		self._key = key
+		self._size = size
+		self._len = 0
+
+		with lock:
+			if not self._key in state._data:
+				state._data[self._key] = {}
+
+	def fetch(self, fn, *args, **kwargs):
+		_offset, _psize = 0, min(self._size, cfg.perf['pageSize'])
+		'''
+		don't use dict.update(), which introduces weird inconsistencies
+		'''
+		for i in itertools.count(start=1):
+			match self._key:
+
+				case 'albumList':
+					r = fn(*args, **kwargs, size=_psize, offset=_offset)
+					with lock:
+						if not 'album' in state._data[self._key]: state._data[self._key]['album'] = []
+						state._data[self._key]['album'].extend(r[self._key]['album'])
+
+					_len = len(r[self._key]['album']) if 'album' in r[self._key] else 0
+					self._len += _len
+
+				case 'searchResult2' | 'searchResult3':
+					r = fn(*args, **kwargs, albumCount=_psize, albumOffset=_offset, songCount=_psize, songOffset=_offset, artistCount=_psize, artistOffset=_offset)
+					with lock:
+						for _key in ['album', 'artist', 'song']:
+							if not _key in state._data[self._key]: state._data[self._key][_key] = []
+							if _key in r[self._key]: state._data[self._key][_key].extend(r[self._key][_key])
+
+					_len = max(
+						len(r[self._key]['album']) if 'album' in r[self._key] else 0,
+						len(r[self._key]['song']) if 'song' in r[self._key] else 0,
+						len(r[self._key]['artist']) if 'artist' in r[self._key] else 0
+					)
+					self._len += _len
+
+				case 'artist':
+					r = fn(*args, **kwargs)
+					with lock:
+						if not 'album' in state._data[self._key]: state._data[self._key]['album'] = []
+						state._data[self._key]['album'].extend(r[self._key]['album'])
+					break
+				case _:
+					break
+
+			if (_len < _psize) or (self._len >= self._size): break
+			_offset = _psize * i
+		# end FOR
+	# end fetch()
 
 
 ''' --------------- helpers ---------------  '''
@@ -70,7 +124,6 @@ def wndManual():
 ''' --------------- remotes ---------------  '''
 
 def remotePlaylist(m3ufile):
-	global state
 	state.serve = m3ufile
 	t = Thread(target=show, args=[remote.playlist])
 	t.daemon = True
@@ -139,7 +192,6 @@ def dlgAction(ids=[]):
 ''' --------------- list views ---------------  '''
 
 def listSessions():
-	global state
 	state.type = 'session'
 	if not len(state.sessions):
 		for fname in sorted(glob(sd + './cache/sess.*'), key=os.path.getmtime, reverse=True):
@@ -252,7 +304,6 @@ def listAlbums():
 	state.call.append(lambda: dlgAction())
 
 def listGenres():
-	global state
 	state.type = 'album'
 	genrescache = os.path.join(sd, './cache/genres.obj')
 	if not os.path.isfile(genrescache):
@@ -285,11 +336,11 @@ def listGenres():
 
 # @size unlimited
 def getAlbums(ltype, _size):
-	global state
-	r = state.connector.conn.getAlbumList(ltype, size=_size)
-	state.choices = []
-	for album in r['albumList']['album']:
+	state._data, state.choices = {}, []
+	Page('albumList', _size).fetch(state.connector.conn.getAlbumList, ltype)
+	for album in state._data['albumList']['album']:
 		state.choices.append(Choice(album['id'], name=u"%s/%s" % (album['artist'], album['title'])))
+	del state._data
 	if numRes := len(state.choices):
 		state.numRes = numRes
 		state.call.append(lambda: listAlbums())
@@ -298,19 +349,17 @@ def getAlbums(ltype, _size):
 
 # @size unlimited
 def getAlbumsByYear(query, _size):
-	global state
-	_fromYear = _toYear = None
-	query = query.strip()
+	state._data, alDict, _fromYear, _toYear, query = {}, {}, None, None, query.strip()
 	if '-' in query and (_q := query.split('-')):
 		_fromYear = _q[0].strip()
 		_toYear = _q[1].strip()
 	else:
 		_fromYear = _toYear = query
-	r = state.connector.conn.getAlbumList('byYear', size=_size, fromYear=_fromYear, toYear=_toYear)
-	alDict = {}
-
-	for album in r['albumList']['album']:
+	Page('albumList', _size).fetch(state.connector.conn.getAlbumList, 'byYear', fromYear=_fromYear, toYear=_toYear)
+	# somewhat convoluted, but we need that sorted
+	for album in state._data['albumList']['album']:
 		alDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
+	del state._data
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if numRes := len(state.choices):
@@ -320,26 +369,20 @@ def getAlbumsByYear(query, _size):
 	else: print("no result")
 
 # threadpool dispatch
-def tGetAlbumsByGenre(genreQuery, _len, _size):
-	global state
+def tGetAlbumsByGenre(genreQuery, _size):
 	if evTerm.is_set(): return
-	state.numRes += 1
-	print(u"%s of %i".ljust(70) % (("%s" % (state.numRes)).rjust(2), _len), end='\r')
-	return state.connector.conn.getAlbumList('byGenre', size=_size, genre=genreQuery)
+	Page('albumList', _size).fetch(state.connector.conn.getAlbumList, 'byGenre', genre=genreQuery)
 
 def getAlbumsByGenres(_size):
-	global state
-	state.selectedChoiceIndex, state.choices, state.seen, alDict = -1, [], set(), {}
-
-	tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _len=len(state.selectedChoice), _size=_size)
-	state.numRes = 0 # reused as counter
+	state.selectedChoiceIndex, state.choices, state.seen, alDict, state._data = -1, [], set(), {}, {}
+	tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _size=_size)
 	with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
-		for r in exe.map(tGetAlbumsByGenreP, state.selectedChoice):
-			for album in r['albumList']['album']:
-				if album['id'] in state.seen: continue
-				alDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
-				state.seen.add(album['id'])
-
+		list(tqdm(exe.map(tGetAlbumsByGenreP, state.selectedChoice), total=len(state.selectedChoice), desc='Genre'))
+	for album in state._data['albumList']['album']:
+		if album['id'] in state.seen: continue
+		alDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
+		state.seen.add(album['id'])
+	del state._data
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if numRes := len(state.choices):
@@ -352,29 +395,28 @@ def getAlbumsByGenres(_size):
 # @size unlimited
 # @query exact genre needed, and no combinations
 def getAlbumsByGenre(query, _size):
-	global state
 	genrescache = os.path.join(sd, './cache/genres.obj')
 	if not os.path.isfile(genrescache):
 		print("update the genre cache first: -ug")
 		return
 	# tbd: show warning if genre cache is outdated, say older than 1 month
 	with open(genrescache, mode="rb") as f: genres = pickle.load(f)
-	alDict = {}
+	alDict, state._data = {}, {}
 	if genres:
 		genreQueryList = []
 		for genre in genres:
 			if query.lower() in genre['value'].lower():
 				genreQueryList.append(genre['value'])
 		if _len := len(genreQueryList):
-			tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _len=_len, _size=_size)
-			state.numRes = 0 # reused as counter
+			tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _size=_size)
 			with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
-				for r in exe.map(tGetAlbumsByGenreP, genreQueryList):
-					for album in r['albumList']['album']:
-						if album['id'] in state.seen: continue
-						alDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
-						state.seen.add(album['id'])
+				list(tqdm(exe.map(tGetAlbumsByGenreP, genreQueryList), total=_len, desc='Genre'))
 
+			for album in state._data['albumList']['album']:
+				if album['id'] in state.seen: continue
+				alDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
+				state.seen.add(album['id'])
+	del state._data
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if numRes := len(state.choices):
@@ -385,32 +427,30 @@ def getAlbumsByGenre(query, _size):
 
 # threadpool dispatch
 def tGetSearch(fn, _key, _query, _size):
-	global state
-	state._data[_key] = fn(_query, albumCount=_size, songCount=_size, artistCount=_size)
+	Page(_key, _size).fetch(fn, _query)
 
-def tGetArtist(id, _len):
-	global state
+def tGetArtist(id, _size):
 	if evTerm.is_set(): return
-	state.numRes += 1
-	print(u"%s of %i".ljust(70) % (("%s" % (state.numRes)).rjust(2), _len), end='\r')
-	return state.connector.conn.getArtist(id)
+	Page('artist', _size).fetch(state.connector.conn.getArtist, id)
 
 def getSearch(query, _size, _all=False):
-	global state
-	fnx, alDict, songDict, arIDs = [], {}, {}, set()
-	fnx.append(partial(tGetSearch, fn=state.connector.conn.search2, _key='s2', _query=query, _size=_size))
-	fnx.append(partial(tGetSearch, fn=state.connector.conn.search3, _key='s3', _query=query, _size=_size))
+	fnx, state._data, alDict, songDict, arIDs = [], {}, {}, {}, set()
 
-	with ThreadPoolExecutor(2) as exe:
-		for fn in fnx: exe.submit(fn)
+	fnx.append(partial(tGetSearch, fn=state.connector.conn.search2, _key='searchResult2', _query=query, _size=_size))
+	fnx.append(partial(tGetSearch, fn=state.connector.conn.search3, _key='searchResult3', _query=query, _size=_size))
+	with tqdm(total=2, desc='Search') as pbar:
+		with ThreadPoolExecutor(2) as exe:
+			for fn in fnx:
+				exe.submit(fn)
+				pbar.update(1)
 
-	if 'album' in state._data['s2']['searchResult2']:
-		for album in state._data['s2']['searchResult2']['album']:
+	if 'album' in state._data['searchResult2']:
+		for album in state._data['searchResult2']['album']:
 			if album['id'] in state.seen: continue
 			alDict[album['title']] = album['id']
 			state.seen.add(album['id'])
-	if 'song' in state._data['s2']['searchResult2']:
-		for song in state._data['s2']['searchResult2']['song']:
+	if 'song' in state._data['searchResult2']:
+		for song in state._data['searchResult2']['song']:
 			if song['parent'] in state.seen: continue
 			title = []
 			title.append(song['album'])
@@ -418,13 +458,13 @@ def getSearch(query, _size, _all=False):
 			title = ' / '.join(title)
 			songDict[title] = song['parent']
 			state.seen.add(song['parent'])
-	if 'artist' in state._data['s2']['searchResult2']:
-		for artist in state._data['s2']['searchResult2']['artist']:
+	if 'artist' in state._data['searchResult2']:
+		for artist in state._data['searchResult2']['artist']:
 			if not artist['id'] in arIDs: arIDs.add(artist['id'])
 
 	# tag lookup
-	if 'album' in state._data['s3']['searchResult3']:
-		for album in state._data['s3']['searchResult3']['album']:
+	if 'album' in state._data['searchResult3']:
+		for album in state._data['searchResult3']['album']:
 			if album['id'] in state.seen: continue
 			title = []
 			title.append(album['name'])
@@ -433,8 +473,8 @@ def getSearch(query, _size, _all=False):
 			title = ' / '.join(title)
 			alDict[title] = album['id']
 			state.seen.add(album['id'])
-	if 'song' in state._data['s3']['searchResult3']:
-		for song in state._data['s3']['searchResult3']['song']:
+	if 'song' in state._data['searchResult3']:
+		for song in state._data['searchResult3']['song']:
 			if song['parent'] in state.seen: continue
 			title = []
 			title.append(song['album'])
@@ -443,32 +483,32 @@ def getSearch(query, _size, _all=False):
 			title = ' / '.join(title)
 			songDict[title] = song['parent']
 			state.seen.add(song['parent'])
-	if 'artist' in state._data['s3']['searchResult3']:
-		for artist in state._data['s3']['searchResult3']['artist']:
+	if 'artist' in state._data['searchResult3']:
+		for artist in state._data['searchResult3']['artist']:
 			if not artist['id'] in arIDs: arIDs.add(artist['id'])
 
-	state._data = {}
-
 	if _all and (_len := len(arIDs)):
-		tGetArtistP = partial(tGetArtist, _len=_len)
+		tGetArtistP = partial(tGetArtist, _size=_size)
 		with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
-			for r in exe.map(tGetArtistP, arIDs):
-				for album in r['artist']['album']:
-					if album['id'] in state.seen: continue
-					title = []
-					# WIP (transliterate)
-					if query.lower() in album['artist'].lower():
-						title.append(album['artist'])
-						if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
-						title.append(album['name'])
-						alDict[' / '.join(title)] = album['id']
-					else:
-						title.append(album['name'])
-						if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
-						title.append(album['artist'])
-						songDict[' / '.join(title)] = album['id']
-					state.seen.add(album['id'])
+			list(tqdm(exe.map(tGetArtistP, arIDs), total=_len, desc='Artist'))
 
+		for album in state._data['artist']['album']:
+			if album['id'] in state.seen: continue
+			title = []
+			# WIP (transliterate)
+			if query.lower() in album['artist'].lower():
+				title.append(album['artist'])
+				if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
+				title.append(album['name'])
+				alDict[' / '.join(title)] = album['id']
+			else:
+				title.append(album['name'])
+				if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
+				title.append(album['artist'])
+				songDict[' / '.join(title)] = album['id']
+			state.seen.add(album['id'])
+
+	del state._data
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
@@ -498,12 +538,11 @@ def getAlbumPathById(id):
 	return None
 
 def getAlbumDetailsById(id):
-	global state
 	if not id: return state.call.pop()
 	r = state.connector.conn.getAlbum(id)
 	if 'songCount' in r['album'] and r['album']['songCount'] > 0:
-		prop = []
-		alArtist = None
+		prop, alArtist = [], None
+
 		if r['album']['artist']:
 			alArtist = r['album']['artist']
 			prop.append(u"%s: %s" % ("artist".ljust(10), r['album']['artist'],))
@@ -549,9 +588,7 @@ def getAlbumDetailsById(id):
 ''' --------------- store & pipe ---------------  '''
 
 def add(alIds, silent=False):
-	global state
-	fnx, m3ufile = [], os.path.join(sd, u"./cache/%s.%s" % (int(time()), 'm3u8'))
-	header = False
+	header, fnx, m3ufile = False, [], os.path.join(sd, u"./cache/%s.%s" % (int(time()), 'm3u8'))
 	with open(m3ufile, mode="a", encoding="utf8") as state.fh:
 		for alId in alIds:
 			if not alId: next
@@ -604,10 +641,11 @@ def tAddAlbumByIdStream(id, silent=False):
 	urls, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
-			af = lambda x: (x if len(x) <= 30 else strip(x[:30])) + " ~ "
-			if r['album']['name']: album = af(u"%s" % (r['album']['name'],))
+			af = lambda x: (x if len(x) <= 30 else x[:30].strip()) + " ~ "
+			if r['album']: album = af(u"%s" % (r['album']['name'],))
 			elif r['album']['title']: album = af(u"%s" % (r['album']['title'],))
 			else: album = u""
+
 			for song in r['album']['song']:
 				url = state.connector.conn.stream(song['id'], maxBitRate=192)
 				urls.append(u"#EXTINF:%s,%s%s - %s" % (
@@ -647,7 +685,6 @@ def scan():
 
 # tbd: streamline & remove duplicated session code (as well see listSessions())
 def getSessions():
-	global state
 	state.type = 'session'
 	state.sessions = []
 
@@ -683,12 +720,8 @@ def getSessions():
 			expandSession(selected, alIds)
 
 def trimSession():
-	global state
 	with open(state.sess, mode="rb") as f: sess = pickle.load(f)
-	alDict = {}
-	songDict = {}
-
-	sep = False
+	alDict, songDict, sep = {}, {}, False
 	for choice in sess['choices']:
 		if sep:
 			if choice.value not in state.selectedChoice:
@@ -723,10 +756,7 @@ def trimSession():
 
 def expandSession(selected=False, alIds=[]):
 	with open(state.selectedChoice, mode="rb") as f: sess = pickle.load(f)
-	alDict = {}
-	songDict = {}
-
-	sep = False
+	alDict, songDict, sep = {}, {}, False
 	for choice in sess['choices']:
 		if sep:
 			songDict[choice.name] = choice.value
@@ -744,8 +774,7 @@ def expandSession(selected=False, alIds=[]):
 		}, f)
 
 def getSessionChoices(alDict={}, songDict={}, selected=False, alIds=[]):
-	sep = False
-	i = -1
+	sep, i = False, -1
 	for choice in state.choices:
 		i += 1
 		if sep:
@@ -770,7 +799,6 @@ def getSessionChoices(alDict={}, songDict={}, selected=False, alIds=[]):
 	return choices
 
 def makeSession(selected=False, alIds=[]):
-	global state
 	fname = os.path.join(sd, "./cache/sess.%i.obj" % (int(time()),))
 	state.sessions.insert(0, Choice(fname,
 		name=u"%s%s" % (state.selectedChoice.ljust(70), "%s" % strftime('%Y-%m-%d %H:%M:%S', localtime(int((fname.split('.'))[-2]))))
@@ -782,7 +810,6 @@ def makeSession(selected=False, alIds=[]):
 		}, f)
 
 def getStations():
-	global state
 	state.choices = []
 	for k, v in cfg.radio.items():
 		state.choices.append(Choice(v, name=k))
@@ -826,7 +853,7 @@ def queueCloser(qin, qout):
 	qout.join_thread()
 
 def show(fn):
-	global state, pool, evTerm, wndQs, webProc
+	global pool, evTerm, wndQs, webProc
 
 	while True: # wait for procMan
 		try: p, qin, qout, evParent, evChild = pool.popleft()
@@ -835,17 +862,17 @@ def show(fn):
 
 	sharedState = copy(state)
 	sharedState.connector = None
-	if fn in [prompt.action, prompt.mode, prompt.backToList, prompt.nameSession, prompt.listSessions, prompt.modeSession, prompt.confRmSession, window.coverArt, window.manual, remote.playlist]:
+	if fn in {prompt.action, prompt.mode, prompt.backToList, prompt.nameSession, prompt.listSessions, prompt.modeSession, prompt.confRmSession, window.coverArt, window.manual, remote.playlist}:
 		sharedState.choices = None
 		sharedState.alProp = None
 		sharedState.mode = args['mode']
 		sharedState.action = args['action'] if 'action' in args else None
 		sharedState.sessmode = args['sessmode'] if 'sessmode' in args else None
-	if fn in [window.coverArt, window.manual]:
+	if fn in {window.coverArt, window.manual}:
 		wndQs.append(qout)
-	elif fn in [wsgi.webapp]:
+	elif fn in {wsgi.webapp}:
 		webProc = (p, qin, qout, evParent, evChild)
-	if fn in [remote.playlist, wsgi.webapp]:
+	if fn in {remote.playlist, wsgi.webapp}:
 		sharedState.server = cfg.server
 	sharedState.seen = None
 	sharedState.call = None
@@ -924,7 +951,7 @@ def procMan():
 		p.join()
 
 def dispatch(exit=True, mp=True):
-	global state, evTerm
+	global evTerm
 	evTerm = mpEvent()
 	if mp:
 		t = Thread(target=procMan)
@@ -944,7 +971,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.1.5')
+	parser.add_argument('-v', '--version', action='version', version='0.2.0')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -1042,9 +1069,9 @@ def main():
 # end main()
 
 if __name__ == "__main__":
-	import sys, os, pickle
+	import sys, os, pickle, itertools
 	from multiprocessing import (Event as mpEvent, Queue as mpQueue, Process)
-	from threading import Thread
+	from threading import Thread, Lock
 	from concurrent.futures import ThreadPoolExecutor
 	from functools import partial
 	from glob import glob
@@ -1054,11 +1081,12 @@ if __name__ == "__main__":
 	from collections import deque
 	from time import time, strftime, localtime, sleep
 	from math import ceil
+	from tqdm import tqdm
 	from InquirerPy.base.control import Choice
 	from foosonic import prompt, window, remote, wsgi, connection
 	from _config import cfg
 
-	sd, args, state = os.path.dirname(os.path.realpath(__file__)), None, None
+	sd, args, state, lock = os.path.dirname(os.path.realpath(__file__)), None, None, Lock()
 	pool, procs, wndQs, evTerm, webProc = deque(maxlen=2), deque(maxlen=20), deque(), None, (None, None, None, None, None)
 
 	try:

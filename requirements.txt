@@ -4,3 +4,4 @@ Werkzeug==3.0.2
 InquirerPy==0.3.4
 Pillow==10.3.0
 requests==2.31.0
+tqdm==4.66.4
