@@ -8,6 +8,7 @@ foosonic client by robot
 class State:
 	def __init__(self):
 		self.connector = None
+		self.ltype = None
 		self.type = 'album'
 		self.numRes = 0
 		self.choices = []
@@ -40,29 +41,26 @@ class Page:
 		don't use dict.update(), which introduces weird inconsistencies
 		'''
 		for i in itertools.count(start=1):
+			if evTerm.is_set(): break
 			match self._key:
 
 				case 'albumList':
-					r = fn(*args, **kwargs, size=_psize, offset=_offset)
+					_len, r = 0, fn(*args, **kwargs, size=_psize, offset=_offset)
 					with lock:
 						if not 'album' in state._data[self._key]: state._data[self._key]['album'] = []
-						state._data[self._key]['album'].extend(r[self._key]['album'])
-
-					_len = len(r[self._key]['album']) if 'album' in r[self._key] else 0
+						if 'album' in r[self._key]:
+							state._data[self._key]['album'].extend(r[self._key]['album'])
+							_len = len(r[self._key]['album'])
 					self._len += _len
 
 				case 'searchResult2' | 'searchResult3':
-					r = fn(*args, **kwargs, albumCount=_psize, albumOffset=_offset, songCount=_psize, songOffset=_offset, artistCount=_psize, artistOffset=_offset)
+					_len, r = 0, fn(*args, **kwargs, albumCount=_psize, albumOffset=_offset, songCount=_psize, songOffset=_offset, artistCount=_psize, artistOffset=_offset)
 					with lock:
 						for _key in ['album', 'artist', 'song']:
 							if not _key in state._data[self._key]: state._data[self._key][_key] = []
-							if _key in r[self._key]: state._data[self._key][_key].extend(r[self._key][_key])
-
-					_len = max(
-						len(r[self._key]['album']) if 'album' in r[self._key] else 0,
-						len(r[self._key]['song']) if 'song' in r[self._key] else 0,
-						len(r[self._key]['artist']) if 'artist' in r[self._key] else 0
-					)
+							if _key in r[self._key]:
+								state._data[self._key][_key].extend(r[self._key][_key])
+								_len = max(_len, len(r[self._key][_key]))
 					self._len += _len
 
 				case 'artist':
@@ -147,10 +145,13 @@ def webapp():
 
 def dlgBackToList():
 	show(prompt.backToList)
-	if state.selectedChoice:
-		fn = listStations if state.type == "radio" else listAlbums
-		state.call.append(lambda: fn())
-		clear()
+	# the call stack is somewhat of a mess; quitting this way always works
+	if not state.selectedChoice:
+		evTerm.set()
+		raise KeyboardInterrupt
+	fn = listStations if state.type == "radio" else listAlbums
+	state.call.append(lambda: fn())
+	clear()
 
 def dlgMode():
 	show(prompt.mode)
@@ -304,7 +305,7 @@ def listAlbums():
 	state.call.append(lambda: dlgAction())
 
 def listGenres():
-	state.type = 'album'
+	state.type, state.ltype = 'album', 'genre'
 	genrescache = os.path.join(sd, './cache/genres.obj')
 	if not os.path.isfile(genrescache):
 		print("update the genre cache first: -ug")
@@ -330,6 +331,31 @@ def listGenres():
 			return state.call.append(lambda: listSessions())
 
 		state.call.append(lambda: getAlbumsByGenres(state._size))
+
+# minimal (and somewhat buggy) implementation
+def listArtists():
+	state.type, state.ltype = 'album', 'artist'
+
+	# tbd. caching
+	r = state.connector.conn.getArtists()
+	for index in r['artists']['index']:
+		for artist in index['artist']:
+			state.choices.append(Choice(artist['id'], name=u"%s" % (artist['name'],)))
+
+	state.numRes = len(state.choices)
+	clear()
+	show(prompt.listArtists)
+
+	if state.sig == "\x08":
+		return state.call.append(lambda: listArtists())
+
+	if state.sig == "\x1E":
+		return state.call.append(lambda: getStations())
+
+	if state.sig == "\x1F":
+		return state.call.append(lambda: listSessions())
+
+	state.call.append(lambda: getAlbumsByArtists(state._size))
 
 
 ''' --------------- search & fetch sets ---------------  '''
@@ -370,7 +396,6 @@ def getAlbumsByYear(query, _size):
 
 # threadpool dispatch
 def tGetAlbumsByGenre(genreQuery, _size):
-	if evTerm.is_set(): return
 	Page('albumList', _size).fetch(state.connector.conn.getAlbumList, 'byGenre', genre=genreQuery)
 
 def getAlbumsByGenres(_size):
@@ -391,6 +416,32 @@ def getAlbumsByGenres(_size):
 		clear()
 	else:
 		state.call.append(lambda: listGenres())
+
+def getAlbumsByArtists(_size):
+	state.selectedChoiceIndex, state.choices, state.seen, alDict, state._data = -1, [], set(), {}, {}
+
+	tGetArtistP = partial(tGetArtist, _size=_size)
+	with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
+		list(tqdm(exe.map(tGetArtistP, state.selectedChoice), total=len(state.selectedChoice), desc='Artist'))
+
+	# songDict concept not implemented (yet)
+	for album in state._data['artist']['album']:
+		if album['id'] in state.seen: continue
+		title = [album['artist']]
+		if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
+		title.append(album['name'])
+		alDict[' / '.join(title)] = album['id']
+		state.seen.add(album['id'])
+
+	del state._data
+	for key in sorted(alDict.keys()):
+		state.choices.append(Choice(alDict[key], name=key))
+
+	if numRes := len(state.choices):
+		state.numRes = numRes
+		state.call.append(lambda: listAlbums())
+		clear()
+	else: print("no result")
 
 # @size unlimited
 # @query exact genre needed, and no combinations
@@ -430,7 +481,6 @@ def tGetSearch(fn, _key, _query, _size):
 	Page(_key, _size).fetch(fn, _query)
 
 def tGetArtist(id, _size):
-	if evTerm.is_set(): return
 	Page('artist', _size).fetch(state.connector.conn.getArtist, id)
 
 def getSearch(query, _size, _all=False):
@@ -971,7 +1021,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.2.0')
+	parser.add_argument('-v', '--version', action='version', version='0.2.1')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -984,6 +1034,7 @@ def main():
 	parser.add_argument('-r', '--radio', help='select radio station', action='store_true', required=False)
 	parser.add_argument('-ug', '--updategenres', help='update genre cache', action='store_true', required=False)
 	parser.add_argument('-gg', '--genres', help='list genres', action='store_true', required=False)
+	parser.add_argument('-aa', '--artists', help='list artists', action='store_true', required=False)
 	parser.add_argument('-ss', '--sessions', help='list sessions', action='store_true', required=False)
 	parser.add_argument('-rand', '--random', help='list random albums', action='store_true', required=False)
 	parser.add_argument('--scan', help='initiate rescan of the media libraries', action='store_true', required=False)
@@ -1038,6 +1089,10 @@ def main():
 
 	if args['genres']:
 		state.call.append(lambda: listGenres())
+		dispatch()
+
+	if args['artists']:
+		state.call.append(lambda: listArtists())
 		dispatch()
 
 	if args['sessions']:

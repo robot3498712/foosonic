@@ -59,8 +59,8 @@ network path map, used for filesystem playlists, "open dir" and such
 	keys are matched via path.startswith()
 '''
 cfg.pathmap = {
-	"\0": '\\\\MAPPED_DRIVE/data_dir/',
-	'Starts_with': '\\\\MAPPED_DRIVE/data_dir/Starts_with',
+	"\0": r'\\MAPPED_DRIVE/data_dir/',
+	'Starts_with': r'\\MAPPED_DRIVE/data_dir/Starts_with',
 }
 
 # station dict: key=label, value=url

@@ -136,9 +136,13 @@ def listSessions(qin, qout, e, _):
 	qout.put(state)
 	e.set()
 
+# tbd. decorator/refactor
+def listArtists(qin, qout, e, _):
+	listGenres(qin, qout, e, _)
+
 def listGenres(qin, qout, e, _):
 	state = qin.get()
-	prompt = inquirer.fuzzy(message="Select genre", long_instruction="toggle down: tab / up: s-tab / all: c-r / exact: c-t",
+	prompt = inquirer.fuzzy(message=f"Select {state.ltype}", long_instruction="toggle down: tab / up: s-tab / all: c-r / exact: c-t",
 		choices=state.choices, match_exact=True, multiselect=True,
 		keybindings={"answer": [], "toggle": [], "toggle-all": [{"key": "c-r"}], "toggle-all-true": [], "toggle-exact": [{"key": "c-t"}]},
 		default=state.fuzzyText['genre'], style=style, height="100%", transformer=lambda result: f"({len(result)})",
@@ -162,7 +166,7 @@ def listGenres(qin, qout, e, _):
 
 	@prompt.register_kb("c-m") # override {enter} to store input text
 	def _handle_enter(event):
-		state.fuzzyText['genre'] = prompt._get_current_text().strip()
+		state.fuzzyText[state.ltype] = prompt._get_current_text().strip()
 		prompt._handle_enter(event)
 
 	@prompt.register_kb("alt-left")
