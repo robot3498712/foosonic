@@ -16,7 +16,7 @@ class State:
 		self.selectedChoiceIndex = -1
 		self.seen = set()
 		self.sessions = []
-		self.fuzzyText = {'genre': None, 'session': None, 'radio': None, 'album': None}
+		self.fuzzyText = {'genre': None, 'artist': None, 'session': None, 'radio': None, 'album': None}
 		self.alProp = []
 		self.alId = None
 		self.sess = None
@@ -198,7 +198,7 @@ def listSessions():
 		for fname in sorted(glob(sd + './cache/sess.*'), key=os.path.getmtime, reverse=True):
 			with open(fname, mode="rb") as f: sess = pickle.load(f)
 			state.sessions.append(Choice(fname,
-				name=u"%s%s" % (sess['name'].ljust(70), "%s" % strftime('%Y-%m-%d %H:%M:%S', localtime(int((fname.split('.'))[-2]))))
+				name=f"{sess['name'].ljust(70)}{strftime('%Y-%m-%d %H:%M:%S', localtime(int((fname.split('.'))[-2])))}"
 			))
 	if not len(state.sessions):
 		print("no sessions")
@@ -315,7 +315,7 @@ def listGenres():
 	if genres:
 		genreList = []
 		for genre in genres:
-			genreList.append(Choice(genre['value'], name=u"%s (%s)" % (genre['value'], genre['albumCount'])))
+			genreList.append(Choice(genre['value'], name=f"{genre['value']} ({genre['albumCount']})"))
 
 		state.choices = genreList
 		clear()
@@ -340,7 +340,7 @@ def listArtists():
 	r = state.connector.conn.getArtists()
 	for index in r['artists']['index']:
 		for artist in index['artist']:
-			state.choices.append(Choice(artist['id'], name=u"%s" % (artist['name'],)))
+			state.choices.append(Choice(artist['id'], name=f"{artist['name']}"))
 
 	state.numRes = len(state.choices)
 	clear()
@@ -365,7 +365,7 @@ def getAlbums(ltype, _size):
 	state._data, state.choices = {}, []
 	Page('albumList', _size).fetch(state.connector.conn.getAlbumList, ltype)
 	for album in state._data['albumList']['album']:
-		state.choices.append(Choice(album['id'], name=u"%s/%s" % (album['artist'], album['title'])))
+		state.choices.append(Choice(album['id'], name=f"{album['artist']}/{album['title']}"))
 	del state._data
 	if numRes := len(state.choices):
 		state.numRes = numRes
@@ -377,14 +377,12 @@ def getAlbums(ltype, _size):
 def getAlbumsByYear(query, _size):
 	state._data, alDict, _fromYear, _toYear, query = {}, {}, None, None, query.strip()
 	if '-' in query and (_q := query.split('-')):
-		_fromYear = _q[0].strip()
-		_toYear = _q[1].strip()
+		_fromYear, _toYear = _q[0].strip(), _q[1].strip()
 	else:
 		_fromYear = _toYear = query
 	Page('albumList', _size).fetch(state.connector.conn.getAlbumList, 'byYear', fromYear=_fromYear, toYear=_toYear)
-	# somewhat convoluted, but we need that sorted
 	for album in state._data['albumList']['album']:
-		alDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
+		alDict[f"{album['artist']}/{album['title']}"] = album['id']
 	del state._data
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
@@ -405,7 +403,7 @@ def getAlbumsByGenres(_size):
 		list(tqdm(exe.map(tGetAlbumsByGenreP, state.selectedChoice), total=len(state.selectedChoice), desc='Genre'))
 	for album in state._data['albumList']['album']:
 		if album['id'] in state.seen: continue
-		alDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
+		alDict[f"{album['artist']}/{album['title']}"] = album['id']
 		state.seen.add(album['id'])
 	del state._data
 	for key in sorted(alDict.keys()):
@@ -428,7 +426,7 @@ def getAlbumsByArtists(_size):
 	for album in state._data['artist']['album']:
 		if album['id'] in state.seen: continue
 		title = [album['artist']]
-		if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
+		if 'year' in album and album['year']: title.append(f"{album['year']}")
 		title.append(album['name'])
 		alDict[' / '.join(title)] = album['id']
 		state.seen.add(album['id'])
@@ -465,7 +463,7 @@ def getAlbumsByGenre(query, _size):
 
 			for album in state._data['albumList']['album']:
 				if album['id'] in state.seen: continue
-				alDict[u"%s/%s" % (album['artist'], album['title'])] = album['id']
+				alDict[f"{album['artist']}/{album['title']}"] = album['id']
 				state.seen.add(album['id'])
 	del state._data
 	for key in sorted(alDict.keys()):
@@ -502,9 +500,8 @@ def getSearch(query, _size, _all=False):
 	if 'song' in state._data['searchResult2']:
 		for song in state._data['searchResult2']['song']:
 			if song['parent'] in state.seen: continue
-			title = []
-			title.append(song['album'])
-			title.append(u"%s - %s" % (song['artist'] if 'artist' in song else 'Unknown Artist', song['title']))
+			title = [song['album']]
+			title.append(f"{song['artist'] if 'artist' in song else 'Unknown Artist'} - {song['title']}")
 			title = ' / '.join(title)
 			songDict[title] = song['parent']
 			state.seen.add(song['parent'])
@@ -516,9 +513,8 @@ def getSearch(query, _size, _all=False):
 	if 'album' in state._data['searchResult3']:
 		for album in state._data['searchResult3']['album']:
 			if album['id'] in state.seen: continue
-			title = []
-			title.append(album['name'])
-			if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
+			title = [album['name']]
+			if 'year' in album and album['year']: title.append(f"{album['year']}")
 			if 'artist' in album and album['artist']: title.append(album['artist'])
 			title = ' / '.join(title)
 			alDict[title] = album['id']
@@ -526,10 +522,9 @@ def getSearch(query, _size, _all=False):
 	if 'song' in state._data['searchResult3']:
 		for song in state._data['searchResult3']['song']:
 			if song['parent'] in state.seen: continue
-			title = []
-			title.append(song['album'])
-			if 'year' in song and song['year']: title.append(u"%s" % (song['year'],))
-			title.append(u"%s - %s" % (song['artist'] if 'artist' in song else 'Unknown Artist', song['title']))
+			title = [song['album']]
+			if 'year' in song and song['year']: title.append(f"{song['year']}")
+			title.append(f"{song['artist'] if 'artist' in song else 'Unknown Artist'} - {song['title']}")
 			title = ' / '.join(title)
 			songDict[title] = song['parent']
 			state.seen.add(song['parent'])
@@ -548,12 +543,12 @@ def getSearch(query, _size, _all=False):
 			# WIP (transliterate)
 			if query.lower() in album['artist'].lower():
 				title.append(album['artist'])
-				if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
+				if 'year' in album and album['year']: title.append(f"{album['year']}")
 				title.append(album['name'])
 				alDict[' / '.join(title)] = album['id']
 			else:
 				title.append(album['name'])
-				if 'year' in album and album['year']: title.append(u"%s" % (album['year'],))
+				if 'year' in album and album['year']: title.append(f"{album['year']}")
 				title.append(album['artist'])
 				songDict[' / '.join(title)] = album['id']
 			state.seen.add(album['id'])
@@ -562,7 +557,7 @@ def getSearch(query, _size, _all=False):
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		state.choices.append(Choice(0, name="%s" % ('~' * 50)))
+		state.choices.append(Choice(0, name=f"{'~'*50}"))
 	for key in sorted(songDict.keys()):
 		state.choices.append(Choice(songDict[key], name=key))
 
@@ -580,10 +575,10 @@ def getAlbumPathById(id):
 			path = None
 			for k, v in cfg.pathmap.items():
 				if p.startswith(k):
-					path = u"%s%s" % (v, p)
+					path = f"{v}{p}"
 					break
 			if not path:
-				path = u"%s%s" % (cfg.pathmap["\0"], p)
+				path = f'{cfg.pathmap["\0"]}{p}'
 			return os.path.dirname(os.path.abspath(path))
 	return None
 
@@ -595,26 +590,26 @@ def getAlbumDetailsById(id):
 
 		if r['album']['artist']:
 			alArtist = r['album']['artist']
-			prop.append(u"%s: %s" % ("artist".ljust(10), r['album']['artist'],))
-		if r['album']['name']: prop.append(u"%s: %s" % ("name".ljust(10), r['album']['name'],))
-		if r['album']['title']: prop.append(u"%s: %s" % ("title".ljust(10), r['album']['title'],))
-		if 'year' in r['album'] and r['album']['year']: prop.append(u"%s: %s" % ("year".ljust(10), r['album']['year'],))
-		if 'genre' in r['album'] and r['album']['genre']: prop.append(u"%s: %s" % ("genre".ljust(10), r['album']['genre'],))
-		if r['album']['songCount']: prop.append(u"%s: %s" % ("songCount".ljust(10), r['album']['songCount'],))
+			prop.append(f"{'artist'.ljust(10)}: {r['album']['artist']}")
+		if r['album']['name']: prop.append(f"{'name'.ljust(10)}: {r['album']['name']}")
+		if r['album']['title']: prop.append(f"{'title'.ljust(10)}: {r['album']['title']}")
+		if 'year' in r['album'] and r['album']['year']: prop.append(f"{'year'.ljust(10)}: {r['album']['year']}")
+		if 'genre' in r['album'] and r['album']['genre']: prop.append(f"{'genre'.ljust(10)}: {r['album']['genre']}")
+		if r['album']['songCount']: prop.append(f"{'songCount'.ljust(10)}: {r['album']['songCount']}")
 		if r['album']['duration']:
-			prop.append(u"%s: %s (%im)" % ("duration".ljust(10), r['album']['duration'], ceil(r['album']['duration'] / 60)))
-		if r['album']['created']: prop.append(u"%s: %s" % ("created".ljust(10), r['album']['created'],))
-		if r['album']['artistId']: prop.append(u"%s: %s" % ("artistId".ljust(10), r['album']['artistId'],))
-		if r['album']['album']: prop.append(u"%s: %s" % ("album".ljust(10), r['album']['album'],))
-		if r['album']['id']: prop.append(u"%s: %s" % ("albumId".ljust(10), r['album']['id'],))
-		if 'coverArt' in r['album'] and r['album']['coverArt']: prop.append(u"%s: %s" % ("coverArt".ljust(10), r['album']['coverArt'],))
+			prop.append(f"{'duration'.ljust(10)}: {r['album']['duration']} ({ceil(r['album']['duration'] / 60)}m)")
+		if r['album']['created']: prop.append(f"{'created'.ljust(10)}: {r['album']['created']}")
+		if r['album']['artistId']: prop.append(f"{'artistId'.ljust(10)}: {r['album']['artistId']}")
+		if r['album']['album']: prop.append(f"{'album'.ljust(10)}: {r['album']['album']}")
+		if r['album']['id']: prop.append(f"{'albumId'.ljust(10)}: {r['album']['id']}")
+		if 'coverArt' in r['album'] and r['album']['coverArt']: prop.append(f"{'coverArt'.ljust(10)}: {r['album']['coverArt']}")
 
-		prop.append(u"%s:" % ("Tracks".ljust(10),))
+		prop.append(f"{'tracks'.ljust(10)}:")
 		for song in r['album']['song']:
 			if alArtist == song['artist']:
-				prop.append(u"%s - %s" % (("%s" % (song['track'] if 'track' in song else 0,)).rjust(3), song['title']))
+				prop.append(f"{(f"{song['track'] if 'track' in song else 0}").rjust(3)} - {song['title']}")
 			else:
-				prop.append(u"%s - %s - %s" % (("%s" % (song['track'] if 'track' in song else 0,)).rjust(3), song['artist'], song['title']))
+				prop.append(f"{(f"{song['track'] if 'track' in song else 0}").rjust(3)} - {song['artist']} - {song['title']}")
 
 		state.alProp = prop
 		state.alId = id
@@ -638,7 +633,7 @@ def getAlbumDetailsById(id):
 ''' --------------- store & pipe ---------------  '''
 
 def add(alIds, silent=False):
-	header, fnx, m3ufile = False, [], os.path.join(sd, u"./cache/%s.%s" % (int(time()), 'm3u8'))
+	header, fnx, m3ufile = False, [], os.path.join(sd, f"./cache/{int(time())}.m3u8")
 	with open(m3ufile, mode="a", encoding="utf8") as state.fh:
 		for alId in alIds:
 			if not alId: next
@@ -676,14 +671,14 @@ def tAddAlbumById(id, silent=False):
 				path = None
 				for k, v in cfg.pathmap.items():
 					if p.startswith(k):
-						path = u"%s%s" % (v, p)
+						path = f"{v}{p}"
 						break
 				if not path:
-					path = u"%s%s" % (cfg.pathmap["\0"], p)
+					path = f'{cfg.pathmap["\0"]}{p}'
 				paths.append(path)
 			if len(paths):
 				state.fh.write("\n".join(paths) + "\n")
-				if not silent: print(u"adding playlist: %s" % (r['album']['name'],))
+				if not silent: print(f"adding playlist: {r['album']['name']}")
 		else:
 			if not silent: print("failed to add invalid album")
 
@@ -692,22 +687,17 @@ def tAddAlbumByIdStream(id, silent=False):
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
 			af = lambda x: (x if len(x) <= 30 else x[:30].strip()) + " ~ "
-			if r['album']: album = af(u"%s" % (r['album']['name'],))
-			elif r['album']['title']: album = af(u"%s" % (r['album']['title'],))
+			if r['album']: album = af(f"{r['album']['name']}")
+			elif r['album']['title']: album = af(f"{r['album']['title']}")
 			else: album = u""
 
 			for song in r['album']['song']:
 				url = state.connector.conn.stream(song['id'], maxBitRate=192)
-				urls.append(u"#EXTINF:%s,%s%s - %s" % (
-					song['duration'] if song['duration'] else "-1",
-					album,
-					song['artist'],
-					song['title']
-				))
+				urls.append(f"#EXTINF:{song['duration'] if song['duration'] else '-1'},{album}{song['artist']} - {song['title']}")
 				urls.append(url)
 			if len(urls):
 				state.fh.write("\n".join(urls) + "\n")
-				if not silent: print(u"adding playlist: %s" % (r['album']['name'],))
+				if not silent: print(f"adding playlist: {r['album']['name']}")
 		else:
 			if not silent: print("failed to add invalid album")
 
@@ -717,10 +707,10 @@ def tAddStation(id, silent=False):
 		if v == id:
 			label = k
 			break
-	urls.append(u"#EXTINF:-1,%s - %s" % (label, id))
+	urls.append(f"#EXTINF:-1,{label} - {id}")
 	urls.append(id)
 	state.fh.write("\n".join(urls) + "\n")
-	if not silent: print(u"adding station: %s" % (label,))
+	if not silent: print(f"adding station: {label}")
 
 
 ''' --------------- misc. tasks ---------------  '''
@@ -750,7 +740,7 @@ def getSessions():
 	for fname in sorted(glob(sd + './cache/sess.*'), key=os.path.getmtime, reverse=True):
 		with open(fname, mode="rb") as f: sess = pickle.load(f)
 		state.sessions.append(Choice(fname,
-			name=u"%s%s" % (sess['name'].ljust(70), "%s" % strftime('%Y-%m-%d %H:%M:%S', localtime(int((fname.split('.'))[-2]))))
+			name=f"{sess['name'].ljust(70)}{strftime('%Y-%m-%d %H:%M:%S', localtime(int((fname.split('.'))[-2])))}"
 		))
 	if not len(state.sessions):
 		show(prompt.nameSession)
@@ -793,7 +783,7 @@ def trimSession():
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		state.choices.append(Choice(None, name="%s" % ('~' * 50)))
+		state.choices.append(Choice(None, name=f"{'~'*50}"))
 	for key in sorted(songDict.keys()):
 		state.choices.append(Choice(songDict[key], name=key))
 
@@ -843,15 +833,15 @@ def getSessionChoices(alDict={}, songDict={}, selected=False, alIds=[]):
 	for key in sorted(alDict.keys()):
 		choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		choices.append(Choice(None, name="%s" % ('~' * 50)))
+		choices.append(Choice(None, name=f"{'~'*50}"))
 	for key in sorted(songDict.keys()):
 		choices.append(Choice(songDict[key], name=key))
 	return choices
 
 def makeSession(selected=False, alIds=[]):
-	fname = os.path.join(sd, "./cache/sess.%i.obj" % (int(time()),))
+	fname = os.path.join(sd, f"./cache/sess.{int(time())}.obj")
 	state.sessions.insert(0, Choice(fname,
-		name=u"%s%s" % (state.selectedChoice.ljust(70), "%s" % strftime('%Y-%m-%d %H:%M:%S', localtime(int((fname.split('.'))[-2]))))
+		name=f"{state.selectedChoice.ljust(70)}{strftime('%Y-%m-%d %H:%M:%S', localtime(int((fname.split('.'))[-2])))}"
 	))
 	with open(fname, mode="wb") as f:
 		pickle.dump({
@@ -896,7 +886,7 @@ def wndPopper():
 			try: _q.put('')
 			except: pass
 
-def queueCloser(qin, qout):
+def qCloser(qin, qout):
 	qin.close()
 	qin.join_thread()
 	qout.close()
@@ -942,7 +932,7 @@ def show(fn):
 
 		# instructions not requiring a new prompt
 		if r == "\x00":
-			return queueCloser(qin, qout)
+			return qCloser(qin, qout)
 		elif r == "\x01":
 			opendir(getAlbumPathById(state.alId))
 		elif r.startswith("\x01\0"):
@@ -960,7 +950,7 @@ def show(fn):
 				wndCoverArt()
 		elif r == "\x10":
 			import webbrowser
-			webbrowser.open("http://%s:%s" % (cfg.server['wsgi']['ip'], cfg.server['wsgi']['port']), new=2, autoraise=True)
+			webbrowser.open(f"http://{cfg.server['wsgi']['ip']}:{cfg.server['wsgi']['port']}", new=2, autoraise=True)
 		elif r.startswith("\x20\0"):
 			(_, args['foo'], args['mode'], alIdsStr) = r.split("\0")
 			add(alIdsStr.split(","), silent=True)
@@ -975,7 +965,7 @@ def show(fn):
 	state.fuzzyText = r.fuzzyText
 	state.sig = r.sig
 
-	queueCloser(qin, qout)
+	qCloser(qin, qout)
 	if state.sig == KeyboardInterrupt:
 		evTerm.set()
 		raise KeyboardInterrupt
@@ -995,7 +985,7 @@ def procMan():
 	for p in procs:
 		p.terminate()
 		p.join()
-	(p, _, _, _, _) = webProc
+	(p, *_) = webProc
 	if p:
 		p.terminate()
 		p.join()

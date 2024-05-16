@@ -28,13 +28,13 @@ def _request(s):
 			auth = requests.auth.HTTPBasicAuth(s['foo_httpcontrol']['user'], b64decode(s['foo_httpcontrol']['pswd']).decode("utf-8")),
 			params = {
 				'cmd': 'CmdLine',
-				'param1': "/add http://%s:%i/cache/playlist.m3u8" % (s['self']['ip'], s['self']['port']),
+				'param1': f"/add http://{s['self']['ip']}:{s['self']['port']}/cache/playlist.m3u8",
 			},
 			timeout = 3,
 		)
 	except: # shut down the server gracefully
 		print("adding playlist failed")
-		requests.get("http://%s:%i/void/" % (s['self']['ip'], s['self']['port']), timeout=1)
+		requests.get(f"http://{s['self']['ip']}:{s['self']['port']}/void/", timeout=1)
 
 def playlist(qin, qout, e, _):
 	from threading import Thread

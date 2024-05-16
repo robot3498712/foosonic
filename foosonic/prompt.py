@@ -206,7 +206,7 @@ def listGenres(qin, qout, e, _):
 def listAlbums(qin, qout, e, _):
 	state = qin.get()
 
-	prompt = inquirer.fuzzy(message="Select %s" % ('session/album' if state.type == 'session' else state.type,), choices=state.choices,
+	prompt = inquirer.fuzzy(message=f"Select {'session/album' if state.type == 'session' else state.type}", choices=state.choices,
 		long_instruction="+foo: c-space / open: a-o / cover: a-i / genres: a-g / radio: a-r / web: a-w / sess: a-s / store: c-s",
 		keybindings={"answer": [], "toggle": [], "toggle-all": [{"key": "c-r"}], "toggle-all-true": [], "toggle-exact": [{"key": "c-t"}]},
 		match_exact=True, multiselect=True, default=state.fuzzyText[state.type], style=style, height="100%",
@@ -296,12 +296,12 @@ def listAlbums(qin, qout, e, _):
 	if state.type != "radio":
 		@prompt.register_kb("alt-o")
 		def _handle_open(event):
-			qout.put("\x01\0%s" % (prompt.content_control.selection["value"],))
+			qout.put(f"\x01\0{prompt.content_control.selection["value"]}")
 			e.set()
 
 		@prompt.register_kb("alt-i")
 		def _handle_open_coverart(event):
-			qout.put("\x07\0%s" % (prompt.content_control.selection["value"],))
+			qout.put(f"\x07\0{prompt.content_control.selection["value"]}")
 			e.set()
 
 		@prompt.register_kb("alt-w")

@@ -21,20 +21,20 @@ def _coverart(id, size=None):
 		return send_file(
 			io.BytesIO(data),
 			mimetype='image/png',
-			download_name='%s.png' % id)
+			download_name=f"{id}.png")
 	return send_file(
 		'./static/lazyload.png',
 		download_name='lazyload.png')
 
 @app.route('/open/<id>')
 def _open(id):
-	_qout.put("\x01\0%s" % (id,))
+	_qout.put(f"\x01\0{id}")
 	_evParent.set()
 	return id
 
 @app.route('/add/<client>/<mode>', methods=['POST'])
 def _add(client, mode):
-	_qout.put("\x20\0%s\0%s\0%s" % (client, mode, request.form['ids']))
+	_qout.put(f"\x20\0{client}\0{mode}\0{request.form['ids']}")
 	_evParent.set()
 	try: _ = _qin.get(timeout=10)
 	except: pass

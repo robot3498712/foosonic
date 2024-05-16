@@ -25,6 +25,7 @@ def manual(qin, qout, e, _):
 alt-o\t\topen directory
 alt-i\t\topen cover art
 alt-w\t\topen web app
+ctrl-r\t\tselect all albums
 ctrl-s\t\tadd to session
 ctrl-c\t\texit
 delete\t\tremove (from) session
