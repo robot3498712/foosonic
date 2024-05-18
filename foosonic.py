@@ -21,7 +21,7 @@ class State:
 		self.alId = None
 		self.sess = None
 		self.sig = None
-		self.call = deque([lambda: None])
+		self.call = deque([None])
 		self.serve = u""
 		self.fh = None
 
@@ -145,10 +145,9 @@ def webapp():
 
 def dlgBackToList():
 	show(prompt.backToList)
-	# the call stack is somewhat of a mess; quitting this way always works
+	# the call stack is somewhat of a mess
 	if not state.selectedChoice:
-		evTerm.set()
-		raise KeyboardInterrupt
+		return state.call.reverse() # quit via pop None
 	fn = listStations if state.type == "radio" else listAlbums
 	state.call.append(lambda: fn())
 	clear()
@@ -262,6 +261,9 @@ def listStations():
 	if state.sig == "\x1D":
 		return state.call.append(lambda: listGenres())
 
+	if state.sig == "\x2D":
+		return state.call.append(lambda: listArtists())
+
 	if state.sig == "\x1F":
 		return state.call.append(lambda: listSessions())
 
@@ -288,6 +290,9 @@ def listAlbums():
 	if state.sig == "\x1D":
 		return state.call.append(lambda: listGenres())
 
+	if state.sig == "\x2D":
+		return state.call.append(lambda: listArtists())
+
 	if state.sig == "\x1E":
 		return state.call.append(lambda: getStations())
 
@@ -305,24 +310,22 @@ def listAlbums():
 	state.call.append(lambda: dlgAction())
 
 def listGenres():
-	state.type, state.ltype = 'album', 'genre'
+	state.type, state.ltype, state.choices = 'album', 'genre', []
 	genrescache = os.path.join(sd, './cache/genres.obj')
-	if not os.path.isfile(genrescache):
-		print("update the genre cache first: -ug")
-		return
-	# tbd: show warning if genre cache is outdated, say older than 1 month
-	with open(genrescache, mode="rb") as f: genres = pickle.load(f)
-	if genres:
-		genreList = []
-		for genre in genres:
-			genreList.append(Choice(genre['value'], name=f"{genre['value']} ({genre['albumCount']})"))
-
-		state.choices = genreList
+	if not os.path.isfile(genrescache) or (time() - os.path.getmtime(genrescache)) > 2592000:
+		print("updating genres..")
+		updateGenres()
+	with open(genrescache, mode="rb") as f: state.choices = pickle.load(f)
+	if _len := len(state.choices):
+		state.numRes = _len
 		clear()
 		show(prompt.listGenres)
 
 		if state.sig == "\x08":
 			return state.call.append(lambda: listGenres())
+
+		if state.sig == "\x2D":
+			return state.call.append(lambda: listArtists())
 
 		if state.sig == "\x1E":
 			return state.call.append(lambda: getStations())
@@ -332,30 +335,31 @@ def listGenres():
 
 		state.call.append(lambda: getAlbumsByGenres(state._size))
 
-# minimal (and somewhat buggy) implementation
 def listArtists():
-	state.type, state.ltype = 'album', 'artist'
+	state.type, state.ltype, state.choices = 'album', 'artist', []
+	artistscache = os.path.join(sd, './cache/artists.obj')
+	if not os.path.isfile(artistscache) or (time() - os.path.getmtime(artistscache)) > 2592000:
+		print("updating artists..")
+		updateArtists()
+	with open(artistscache, mode="rb") as f: state.choices = pickle.load(f)
+	if _len := len(state.choices):
+		state.numRes = _len
+		clear()
+		show(prompt.listArtists)
 
-	# tbd. caching
-	r = state.connector.conn.getArtists()
-	for index in r['artists']['index']:
-		for artist in index['artist']:
-			state.choices.append(Choice(artist['id'], name=f"{artist['name']}"))
+		if state.sig == "\x08":
+			return state.call.append(lambda: listArtists())
 
-	state.numRes = len(state.choices)
-	clear()
-	show(prompt.listArtists)
+		if state.sig == "\x1D":
+			return state.call.append(lambda: listGenres())
 
-	if state.sig == "\x08":
-		return state.call.append(lambda: listArtists())
+		if state.sig == "\x1E":
+			return state.call.append(lambda: getStations())
 
-	if state.sig == "\x1E":
-		return state.call.append(lambda: getStations())
+		if state.sig == "\x1F":
+			return state.call.append(lambda: listSessions())
 
-	if state.sig == "\x1F":
-		return state.call.append(lambda: listSessions())
-
-	state.call.append(lambda: getAlbumsByArtists(state._size))
+		state.call.append(lambda: getAlbumsByArtists(state._size))
 
 
 ''' --------------- search & fetch sets ---------------  '''
@@ -861,12 +865,22 @@ def getStations():
 def updateGenres():
 	r = state.connector.conn.getGenres()
 	if 'genre' in r['genres']:
-		_r = [] # fix here to speed up lookup later
+		_r = []
 		for itm in r['genres']['genre']:
 			if not 'albumCount' in itm: itm['albumCount'] = 0
 			_r.append(itm)
+		for itm in sorted(_r, key=lambda d: d['albumCount'], reverse=True):
+			state.choices.append(Choice(itm['value'], name=f"{itm['value']} ({itm['albumCount']})"))	
 		with open(os.path.join(sd, './cache/genres.obj'), mode="wb") as f:
-			pickle.dump(sorted(_r, key=lambda d: d['albumCount'], reverse=True), f)
+			pickle.dump(state.choices, f)
+
+def updateArtists():
+	r = state.connector.conn.getArtists()
+	for index in r['artists']['index']:
+		for artist in index['artist']:
+			state.choices.append(Choice(artist['id'], name=f"{artist['name']}"))
+	with open(os.path.join(sd, './cache/artists.obj'), mode="wb") as f:
+		pickle.dump(state.choices, f)
 
 
 ''' --------------- processing ---------------
@@ -1023,6 +1037,7 @@ def main():
 	parser.add_argument('-m', '--mode', help='set mode: stream | fs', required=False)
 	parser.add_argument('-r', '--radio', help='select radio station', action='store_true', required=False)
 	parser.add_argument('-ug', '--updategenres', help='update genre cache', action='store_true', required=False)
+	parser.add_argument('-ua', '--updateartists', help='update artist cache', action='store_true', required=False)
 	parser.add_argument('-gg', '--genres', help='list genres', action='store_true', required=False)
 	parser.add_argument('-aa', '--artists', help='list artists', action='store_true', required=False)
 	parser.add_argument('-ss', '--sessions', help='list sessions', action='store_true', required=False)
@@ -1061,6 +1076,13 @@ def main():
 	if args['updategenres']:
 		print("updating genres..")
 		state.call.append(lambda: updateGenres())
+		dispatch(exit=False, mp=False)
+		print("done")
+		sys.exit(0)
+
+	if args['updateartists']:
+		print("updating artists..")
+		state.call.append(lambda: updateArtists())
 		dispatch(exit=False, mp=False)
 		print("done")
 		sys.exit(0)

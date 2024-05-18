@@ -187,6 +187,18 @@ def listGenres(qin, qout, e, _):
 		sig = "\x1F"
 		event.app.exit(result=None)
 
+	@prompt.register_kb("alt-g")
+	def _handle_nav_genre(event):
+		global sig
+		sig = "\x1D"
+		event.app.exit(result=None)
+
+	@prompt.register_kb("alt-a")
+	def _handle_nav_artists(event):
+		global sig
+		sig = "\x2D"
+		event.app.exit(result=None)
+
 	@prompt.register_kb("alt-h")
 	def _handle_manual(event):
 		qout.put("\x42")
@@ -207,7 +219,7 @@ def listAlbums(qin, qout, e, _):
 	state = qin.get()
 
 	prompt = inquirer.fuzzy(message=f"Select {'session/album' if state.type == 'session' else state.type}", choices=state.choices,
-		long_instruction="+foo: c-space / open: a-o / cover: a-i / genres: a-g / radio: a-r / web: a-w / sess: a-s / store: c-s",
+		long_instruction="+foo: c-space / open: a-o / cover: a-i / genres: a-g / artists: a-a / radio: a-r / web: a-w / sess: a-s / store: c-s",
 		keybindings={"answer": [], "toggle": [], "toggle-all": [{"key": "c-r"}], "toggle-all-true": [], "toggle-exact": [{"key": "c-t"}]},
 		match_exact=True, multiselect=True, default=state.fuzzyText[state.type], style=style, height="100%",
 		transformer=lambda result: f"({len(result)})"
@@ -258,6 +270,12 @@ def listAlbums(qin, qout, e, _):
 	def _handle_nav_sessions(event):
 		global sig
 		sig = "\x1F"
+		event.app.exit(result=None)
+
+	@prompt.register_kb("alt-a")
+	def _handle_nav_artists(event):
+		global sig
+		sig = "\x2D"
 		event.app.exit(result=None)
 
 	@prompt.register_kb("c-space")
