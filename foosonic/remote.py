@@ -53,5 +53,5 @@ def playlist(qin, qout, e, _):
 	except: pass
 	finally: httpd.server_close()
 
-	qout.put("\x00")
+	qout.put("\x00\0served")
 	e.set()

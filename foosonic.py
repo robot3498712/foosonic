@@ -91,20 +91,6 @@ def clean():
 def clear():
 	_ = call('clear' if os.name =='posix' else 'cls', shell=True)
 
-# mainly useful for cli ops like --add
-def waitProcs():
-	while True:
-		_pool, _continue = [p for p, *_ in pool], False
-		for proc in procs:
-			if not proc in _pool:
-				if proc.is_alive():
-					_continue = True
-					break
-		if _continue:
-			sleep(0.2)
-			continue
-		break
-
 
 ''' --------------- windows ---------------  '''
 
@@ -664,6 +650,8 @@ def add(alIds, silent=False):
 			p = Popen([cfg.foo, '/add', m3ufile])
 	except:
 		if not silent: print("unknown error adding playlist")
+	else:
+		state._add = True
 
 # threadpool dispatch
 def tAddAlbumById(id, silent=False):
@@ -945,7 +933,8 @@ def show(fn):
 			break
 
 		# instructions not requiring a new prompt
-		if r == "\x00":
+		if r.startswith("\x00"):
+			if 'served' in r: del state._add
 			return qCloser(qin, qout)
 		elif r == "\x01":
 			opendir(getAlbumPathById(state.alId))
@@ -1016,6 +1005,7 @@ def dispatch(exit=True, mp=True):
 			if not _call: raise IndexError
 		except IndexError: break
 		_call()
+	while hasattr(state, '_add'): sleep(0.05)
 	evTerm.set()
 	if exit: sys.exit(0)
 
@@ -1116,7 +1106,6 @@ def main():
 		dispatch()
 
 	if args['add']:
-		state.call.append(lambda: waitProcs())
 		state.call.append(lambda: add([args['add']]))
 		dispatch()
 
