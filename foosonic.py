@@ -464,22 +464,20 @@ def getAlbumsByGenre(query, _size):
 	else: print("no result")
 
 # threadpool dispatch
-def tGetSearch(fn, _key, _query, _size):
+def tGetSearch(fn, _key, _query, _size, pbar=None):
 	Page(_key, _size).fetch(fn, _query)
+	pbar.update(1)
 
 def tGetArtist(id, _size):
 	Page('artist', _size).fetch(state.connector.conn.getArtist, id)
 
 def getSearch(query, _size, _all=False):
 	fnx, state._data, alDict, songDict, arIDs = [], {}, {}, {}, set()
-
-	fnx.append(partial(tGetSearch, fn=state.connector.conn.search2, _key='searchResult2', _query=query, _size=_size))
-	fnx.append(partial(tGetSearch, fn=state.connector.conn.search3, _key='searchResult3', _query=query, _size=_size))
 	with tqdm(total=2, desc='Search') as pbar:
+		fnx.append(partial(tGetSearch, fn=state.connector.conn.search2, _key='searchResult2', _query=query, _size=_size, pbar=pbar))
+		fnx.append(partial(tGetSearch, fn=state.connector.conn.search3, _key='searchResult3', _query=query, _size=_size, pbar=pbar))	
 		with ThreadPoolExecutor(2) as exe:
-			for fn in fnx:
-				exe.submit(fn)
-				pbar.update(1)
+			for fn in fnx: exe.submit(fn)
 
 	if 'album' in state._data['searchResult2']:
 		for album in state._data['searchResult2']['album']:
@@ -546,7 +544,7 @@ def getSearch(query, _size, _all=False):
 	for key in sorted(alDict.keys()):
 		state.choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		state.choices.append(Choice(0, name=f"{'~'*50}"))
+		state.choices.append(Choice(None, name=f"{'~'*50}"))
 	for key in sorted(songDict.keys()):
 		state.choices.append(Choice(songDict[key], name=key))
 
@@ -623,26 +621,28 @@ def getAlbumDetailsById(id):
 
 def add(ids, silent=False):
 	header, state._data, fnx, m3ufile = False, {}, [], os.path.join(sd, f"./cache/{int(time())}.m3u8")
+	ids = [str(x) for x in ids if x is not None]
 	with open(m3ufile, mode="a", encoding="utf8") as fh:
-		for id in ids:
-			if not id: next
-			if not "://" in id:
-				if args['mode'] == "stream":
-					fn = tAddAlbumByIdStream
-					if not header: header = fh.write("#EXTM3U\n")
+		with tqdm(total=len(ids), desc='Add') as pbar:
+			for id in ids:
+				if not "://" in id:
+					if args['mode'] == "stream":
+						fn = tAddAlbumByIdStream
+						if not header: header = fh.write("#EXTM3U\n")
+					else:
+						fn = tAddAlbumById
 				else:
-					fn = tAddAlbumById
-			else:
-				fn = tAddStation
-				if not header: header = fh.write("#EXTM3U\n")
-			fnx.append(partial(fn, id=id, silent=silent))
-		# end FOR
-		with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
-			for fn in fnx: exe.submit(fn)
-		# preserving FIFO; memory tweaks tbd.
-		for id in ids:
-			try: fh.write(state._data[id] + "\n")
-			except: pass
+					fn = tAddStation
+					if not header: header = fh.write("#EXTM3U\n")
+				fnx.append(partial(fn, id=id, pbar=pbar))
+			# end FOR
+			with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
+				for fn in fnx: exe.submit(fn)
+			# preserving FIFO; memory tweaks tbd.
+			for id in ids:
+				try: fh.write(state._data[id] + "\n")
+				except:
+					if not silent: print(f"failed to add {id}")
 	# end WITH_OPEN
 	del state._data
 	try:
@@ -657,7 +657,7 @@ def add(ids, silent=False):
 		state._add = True
 
 # threadpool dispatch
-def tAddAlbumById(id, silent=False):
+def tAddAlbumById(id, pbar=None):
 	paths, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -672,12 +672,10 @@ def tAddAlbumById(id, silent=False):
 					path = f'{cfg.pathmap["\0"]}{p}'
 				paths.append(path)
 			if len(paths):
-				state._data[id] = "\n".join(paths)
-				if not silent: print(f"adding playlist: {r['album']['name']}")
-		else:
-			if not silent: print("failed to add invalid album")
+				with lock: state._data[id] = "\n".join(paths)
+				pbar.update(1)
 
-def tAddAlbumByIdStream(id, silent=False):
+def tAddAlbumByIdStream(id, pbar=None):
 	urls, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -691,12 +689,10 @@ def tAddAlbumByIdStream(id, silent=False):
 				urls.append(f"#EXTINF:{song['duration'] if song['duration'] else '-1'},{album}{song['artist']} - {song['title']}")
 				urls.append(url)
 			if len(urls):
-				state._data[id] = "\n".join(urls)
-				if not silent: print(f"adding playlist: {r['album']['name']}")
-		else:
-			if not silent: print("failed to add invalid album")
+				with lock: state._data[id] = "\n".join(urls)
+				pbar.update(1)
 
-def tAddStation(id, silent=False):
+def tAddStation(id, pbar=None):
 	urls, label = [], None
 	for k, v in cfg.radio.items():
 		if v == id:
@@ -704,8 +700,8 @@ def tAddStation(id, silent=False):
 			break
 	urls.append(f"#EXTINF:-1,{label} - {id}")
 	urls.append(id)
-	state._data[id] = "\n".join(urls)
-	if not silent: print(f"adding station: {label}")
+	with lock: state._data[id] = "\n".join(urls)
+	pbar.update(1)
 
 
 ''' --------------- misc. tasks ---------------  '''
