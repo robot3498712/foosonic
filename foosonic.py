@@ -622,12 +622,12 @@ def getAlbumDetailsById(id):
 
 ''' --------------- store & pipe ---------------  '''
 
-def add(alIds, silent=False):
-	header, fnx, m3ufile = False, [], os.path.join(sd, f"./cache/{int(time())}.m3u8")
+def add(ids, silent=False):
+	header, state._data, fnx, m3ufile = False, {}, [], os.path.join(sd, f"./cache/{int(time())}.m3u8")
 	with open(m3ufile, mode="a", encoding="utf8") as state.fh:
-		for alId in alIds:
-			if not alId: next
-			if not "://" in alId:
+		for id in ids:
+			if not id: next
+			if not "://" in id:
 				if args['mode'] == "stream":
 					fn = tAddAlbumByIdStream
 					if not header: header = state.fh.write("#EXTM3U\n")
@@ -636,12 +636,17 @@ def add(alIds, silent=False):
 			else:
 				fn = tAddStation
 				if not header: header = state.fh.write("#EXTM3U\n")
-			fnx.append(partial(fn, id=alId, silent=silent))
+			fnx.append(partial(fn, id=id, silent=silent))
 		# end FOR
 		with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
 			for fn in fnx: exe.submit(fn)
+		# preserving FIFO; memory tweaks tbd.
+		for id in ids:
+			try: state.fh.write(state._data[id] + "\n")
+			except: pass
 	# end WITH_OPEN
 	state.fh = None
+	del state._data
 	try:
 		if os.stat(m3ufile).st_size < 12: raise ValueError
 		if (args['foo'] and "remote" in args['foo']):
@@ -669,7 +674,7 @@ def tAddAlbumById(id, silent=False):
 					path = f'{cfg.pathmap["\0"]}{p}'
 				paths.append(path)
 			if len(paths):
-				state.fh.write("\n".join(paths) + "\n")
+				state._data[id] = "\n".join(paths)
 				if not silent: print(f"adding playlist: {r['album']['name']}")
 		else:
 			if not silent: print("failed to add invalid album")
@@ -688,7 +693,7 @@ def tAddAlbumByIdStream(id, silent=False):
 				urls.append(f"#EXTINF:{song['duration'] if song['duration'] else '-1'},{album}{song['artist']} - {song['title']}")
 				urls.append(url)
 			if len(urls):
-				state.fh.write("\n".join(urls) + "\n")
+				state._data[id] = "\n".join(urls)
 				if not silent: print(f"adding playlist: {r['album']['name']}")
 		else:
 			if not silent: print("failed to add invalid album")
@@ -701,7 +706,7 @@ def tAddStation(id, silent=False):
 			break
 	urls.append(f"#EXTINF:-1,{label} - {id}")
 	urls.append(id)
-	state.fh.write("\n".join(urls) + "\n")
+	state._data[id] = "\n".join(urls)
 	if not silent: print(f"adding station: {label}")
 
 
