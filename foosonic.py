@@ -23,7 +23,6 @@ class State:
 		self.sig = None
 		self.call = deque([None])
 		self.serve = u""
-		self.fh = None
 
 class Page:
 	def __init__(self, key, size):
@@ -624,28 +623,27 @@ def getAlbumDetailsById(id):
 
 def add(ids, silent=False):
 	header, state._data, fnx, m3ufile = False, {}, [], os.path.join(sd, f"./cache/{int(time())}.m3u8")
-	with open(m3ufile, mode="a", encoding="utf8") as state.fh:
+	with open(m3ufile, mode="a", encoding="utf8") as fh:
 		for id in ids:
 			if not id: next
 			if not "://" in id:
 				if args['mode'] == "stream":
 					fn = tAddAlbumByIdStream
-					if not header: header = state.fh.write("#EXTM3U\n")
+					if not header: header = fh.write("#EXTM3U\n")
 				else:
 					fn = tAddAlbumById
 			else:
 				fn = tAddStation
-				if not header: header = state.fh.write("#EXTM3U\n")
+				if not header: header = fh.write("#EXTM3U\n")
 			fnx.append(partial(fn, id=id, silent=silent))
 		# end FOR
 		with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
 			for fn in fnx: exe.submit(fn)
 		# preserving FIFO; memory tweaks tbd.
 		for id in ids:
-			try: state.fh.write(state._data[id] + "\n")
+			try: fh.write(state._data[id] + "\n")
 			except: pass
 	# end WITH_OPEN
-	state.fh = None
 	del state._data
 	try:
 		if os.stat(m3ufile).st_size < 12: raise ValueError
