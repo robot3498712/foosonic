@@ -621,28 +621,49 @@ def getAlbumDetailsById(id):
 
 def add(ids, silent=False):
 	header, state._data, fnx, m3ufile = False, {}, [], os.path.join(sd, f"./cache/{int(time())}.m3u8")
-	ids = [str(x) for x in ids if x is not None]
-	with open(m3ufile, mode="a", encoding="utf8") as fh:
-		with tqdm(total=len(ids), desc='Add') as pbar:
-			for id in ids:
-				if not "://" in id:
-					if args['mode'] == "stream":
-						fn = tAddAlbumByIdStream
-						if not header: header = fh.write("#EXTM3U\n")
-					else:
-						fn = tAddAlbumById
-				else:
-					fn = tAddStation
+	ids = deque([str(x) for x in ids if x is not None])
+	with open(m3ufile, mode="a", encoding="utf8") as fh:	
+		for id in ids:
+			if not "://" in id:
+				if args['mode'] == "stream":
+					fn = tAddAlbumByIdStream
 					if not header: header = fh.write("#EXTM3U\n")
-				fnx.append(partial(fn, id=id, pbar=pbar))
-			# end FOR
+				else:
+					fn = tAddAlbumById
+			else:
+				fn = tAddStation
+				if not header: header = fh.write("#EXTM3U\n")
+			fnx.append(partial(fn, id=id))
+		# end FOR
+		# preserving FIFO, flush to file on step
+		with tqdm(total=len(ids), desc='Add') as pbar:
 			with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
-				for fn in fnx: exe.submit(fn)
-			# preserving FIFO; memory tweaks tbd.
-			for id in ids:
-				try: fh.write(state._data[id] + "\n")
-				except:
-					if not silent: print(f"failed to add {id}")
+				futures, step = [], 50
+				for fn in fnx:
+					future = exe.submit(fn)
+					futures.append(future)
+				for future in as_completed(futures):
+					pbar.update(1)
+					if not pbar.n % step:
+						with lock:
+							for i in itertools.count(start=0):
+								try:
+									if not ids[i] in state._data: break
+									try: fh.write(state._data[ids[i]] + "\n")
+									except:
+										if not silent: print(f"failed to add {ids[i]}")
+								except IndexError: # EODeque
+									break
+							for j in itertools.count(start=0):
+								if j==i: break
+								id = ids.popleft()
+								del state._data[id]
+			# end WITH_TPE
+		# end WITH_TQDM
+		for id in ids:
+			try: fh.write(state._data[id] + "\n")
+			except:
+				if not silent: print(f"failed to add {id}")
 	# end WITH_OPEN
 	del state._data
 	try:
@@ -657,7 +678,7 @@ def add(ids, silent=False):
 		state._add = True
 
 # threadpool dispatch
-def tAddAlbumById(id, pbar=None):
+def tAddAlbumById(id):
 	paths, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -673,9 +694,10 @@ def tAddAlbumById(id, pbar=None):
 				paths.append(path)
 			if len(paths):
 				with lock: state._data[id] = "\n".join(paths)
-				pbar.update(1)
+				return id
+	return
 
-def tAddAlbumByIdStream(id, pbar=None):
+def tAddAlbumByIdStream(id):
 	urls, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -690,9 +712,10 @@ def tAddAlbumByIdStream(id, pbar=None):
 				urls.append(url)
 			if len(urls):
 				with lock: state._data[id] = "\n".join(urls)
-				pbar.update(1)
+				return id
+	return
 
-def tAddStation(id, pbar=None):
+def tAddStation(id):
 	urls, label = [], None
 	for k, v in cfg.radio.items():
 		if v == id:
@@ -701,7 +724,7 @@ def tAddStation(id, pbar=None):
 	urls.append(f"#EXTINF:-1,{label} - {id}")
 	urls.append(id)
 	with lock: state._data[id] = "\n".join(urls)
-	pbar.update(1)
+	return id
 
 
 ''' --------------- misc. tasks ---------------  '''
@@ -1014,7 +1037,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.2.1')
+	parser.add_argument('-v', '--version', action='version', version='0.2.2')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -1127,7 +1150,7 @@ if __name__ == "__main__":
 	import sys, os, pickle, itertools
 	from multiprocessing import (Event as mpEvent, Queue as mpQueue, Process)
 	from threading import Thread, Lock
-	from concurrent.futures import ThreadPoolExecutor
+	from concurrent.futures import ThreadPoolExecutor, as_completed
 	from functools import partial
 	from glob import glob
 	from subprocess import call, Popen
