@@ -1,12 +1,10 @@
 import io, json, logging, click
 from flask import Flask, render_template, send_file, request
+from flask_compress import Compress
 from foosonic import connection
 
 app, state, _evParent, _qout, _qin = Flask(__name__), None, None, None, None
-
-# logging overrides, https://stackoverflow.com/questions/14888799/disable-console-messages-in-flask-server
-def _secho(text, file=None, nl=None, err=None, color=None, **styles): pass
-def _echo(text, file=None, nl=None, err=None, color=None, **styles): pass
+Compress(app)
 
 
 @app.route('/coverart/<id>')
@@ -69,7 +67,9 @@ def webapp(qin, qout, evParent, evChild):
 	_qout = qout
 	_qin = qin
 
-	# don't print anything to console
+	def _secho(text, file=None, nl=None, err=None, color=None, **styles): pass
+	def _echo(text, file=None, nl=None, err=None, color=None, **styles): pass
+
 	log = logging.getLogger('werkzeug')
 	log.disabled = True
 	click.echo = _echo

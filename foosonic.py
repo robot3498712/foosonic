@@ -620,7 +620,7 @@ def getAlbumDetailsById(id):
 ''' --------------- store & pipe ---------------  '''
 
 def add(ids, silent=False):
-	header, state._data, fnx, m3ufile = False, {}, [], os.path.join(sd, f"./cache/{int(time())}.m3u8")
+	state._data, fnx, tasks, step, header, m3ufile = {}, [], [], 50, False, os.path.join(sd, f"./cache/{int(time())}.m3u8")
 	ids = deque([str(x) for x in ids if x is not None])
 	with open(m3ufile, mode="a", encoding="utf8") as fh:	
 		for id in ids:
@@ -638,11 +638,8 @@ def add(ids, silent=False):
 		# preserving FIFO, flush to file on step
 		with tqdm(total=len(ids), desc='Add') as pbar:
 			with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
-				futures, step = [], 50
-				for fn in fnx:
-					future = exe.submit(fn)
-					futures.append(future)
-				for future in as_completed(futures):
+				for fn in fnx: tasks.append(exe.submit(fn))
+				for _ in as_completed(tasks):
 					pbar.update(1)
 					if not pbar.n % step:
 						with lock:
@@ -656,8 +653,7 @@ def add(ids, silent=False):
 									break
 							for j in itertools.count(start=0):
 								if j==i: break
-								id = ids.popleft()
-								del state._data[id]
+								del state._data[ids.popleft()]
 			# end WITH_TPE
 		# end WITH_TQDM
 		for id in ids:
@@ -694,7 +690,6 @@ def tAddAlbumById(id):
 				paths.append(path)
 			if len(paths):
 				with lock: state._data[id] = "\n".join(paths)
-				return id
 	return
 
 def tAddAlbumByIdStream(id):
@@ -712,7 +707,6 @@ def tAddAlbumByIdStream(id):
 				urls.append(url)
 			if len(urls):
 				with lock: state._data[id] = "\n".join(urls)
-				return id
 	return
 
 def tAddStation(id):
@@ -724,7 +718,7 @@ def tAddStation(id):
 	urls.append(f"#EXTINF:-1,{label} - {id}")
 	urls.append(id)
 	with lock: state._data[id] = "\n".join(urls)
-	return id
+	return
 
 
 ''' --------------- misc. tasks ---------------  '''

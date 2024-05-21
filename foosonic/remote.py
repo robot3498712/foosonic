@@ -1,27 +1,53 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import requests, logging, click
+from threading import Thread
+from base64 import b64decode
+from flask import Flask, send_file, after_this_request
+from flask_compress import Compress
+from werkzeug.serving import make_server
 
-m3ufile = None
+app, server, m3ufile = Flask(__name__), None, None
+Compress(app)
 
-class Server(BaseHTTPRequestHandler):
-	def do_GET(self):
-		import os
-		from shutil import copyfileobj
-		with open(m3ufile, 'rb') as f:
-			fs = os.fstat(f.fileno())
-			self.send_response(200)
-			self.send_header("Content-type", "application/mpegurl")
-			self.send_header("Content-Disposition", 'attachment; filename="{}"'.format(os.path.basename(m3ufile)))
-			self.send_header("Content-Length", str(fs.st_size))
-			self.end_headers()
-			copyfileobj(f, self.wfile)
-		raise KeyboardInterrupt # serve one request
+'''
+https://tedboy.github.io/flask/_modules/werkzeug/serving.html
+https://stackoverflow.com/a/45017691
+https://stackoverflow.com/questions/14888799/disable-console-messages-in-flask-server
+'''
+class Server(Thread):
+	def __init__(self, app, state):
+		Thread.__init__(self)
+		self.server = make_server(host=state.server['self']['listen'], port=state.server['self']['port'], app=app)
+		self.ctx = app.app_context()
+		self.ctx.push()
 
-	def log_message(self, format, *args):
-		return
+	def _secho(self, text, file=None, nl=None, err=None, color=None, **styles): pass
+	def _echo(self, text, file=None, nl=None, err=None, color=None, **styles): pass
+
+	def run(self):
+		log = logging.getLogger('werkzeug')
+		log.disabled = True
+		click.echo = self._echo
+		click.secho = self._secho
+		self.server.serve_forever()
+
+	def shutdown(self):
+		self.server.shutdown()
+
+
+@app.route('/cache/playlist.m3u8')
+def _serve():
+	@after_this_request
+	def shutdown(response):
+		Thread(target=server.shutdown).start()
+		return response
+
+	return send_file(
+		m3ufile,
+		as_attachment=True,
+		mimetype='Content-Type: application/mpegurl; charset=utf-8'
+	)
 
 def _request(s):
-	import requests
-	from base64 import b64decode
 	try:
 		requests.get(
 			url = s['foo_httpcontrol']['url'],
@@ -34,24 +60,21 @@ def _request(s):
 		)
 	except: # shut down the server gracefully
 		print("adding playlist failed")
-		requests.get(f"http://{s['self']['ip']}:{s['self']['port']}/void/", timeout=1)
+		server.shutdown()
 
 def playlist(qin, qout, e, _):
-	from threading import Thread
-	global m3ufile
+	global m3ufile, server
 
 	state = qin.get()
 	m3ufile = state.serve
 
-	httpd = HTTPServer((state.server['self']['listen'], state.server['self']['port']), Server)
+	req = Thread(target=_request, args=[state.server])
+	req.daemon = True
+	req.start()
 
-	t = Thread(target=_request, args=[state.server])
-	t.daemon = True
-	t.start()
-
-	try: httpd.serve_forever()
-	except: pass
-	finally: httpd.server_close()
+	server = Server(app, state)
+	server.start()
+	server.join()
 
 	qout.put("\x00\0served")
 	e.set()
