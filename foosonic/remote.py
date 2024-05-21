@@ -1,11 +1,6 @@
-import requests, logging, click
 from threading import Thread
-from base64 import b64decode
-from flask import Flask, send_file, after_this_request
-from flask_compress import Compress
-from werkzeug.serving import make_server
 
-app, compress, server, m3ufile = Flask(__name__), Compress(), None, None
+server, m3ufile = None, None
 
 '''
 https://tedboy.github.io/flask/_modules/werkzeug/serving.html
@@ -16,40 +11,52 @@ https://stackoverflow.com/questions/14888799/disable-console-messages-in-flask-s
 class Server(Thread):
 	def __init__(self, state):
 		Thread.__init__(self)
+		import logging, click
+		from flask import Flask, send_file, after_this_request
+		from flask_compress import Compress
+		from werkzeug.serving import make_server
+
+		self.after_this_request = after_this_request
+		self.send_file = send_file
+
+		app = Flask(__name__)
+		compress = Compress()
+
+		app.route('/cache/playlist.m3u8')(self._serve)
+
 		compress.init_app(app)
 		app.config['COMPRESS_MIMETYPES'].append('application/mpegurl')
 		self.server = make_server(host=state.server['self']['listen'], port=state.server['self']['port'], app=app)
 		self.ctx = app.app_context()
 		self.ctx.push()
 
-	def _secho(self, text, file=None, nl=None, err=None, color=None, **styles): pass
-	def _echo(self, text, file=None, nl=None, err=None, color=None, **styles): pass
-
-	def run(self):
 		log = logging.getLogger('werkzeug')
 		log.disabled = True
 		click.echo = self._echo
 		click.secho = self._secho
-		self.server.serve_forever()
 
-	def shutdown(self):
-		self.server.shutdown()
+	def _secho(self, text, file=None, nl=None, err=None, color=None, **styles): pass
+	def _echo(self, text, file=None, nl=None, err=None, color=None, **styles): pass
 
+	def _serve(self):
+		@self.after_this_request
+		def shutdown(response):
+			Thread(target=server.shutdown).start()
+			return response
 
-@app.route('/cache/playlist.m3u8')
-def _serve():
-	@after_this_request
-	def shutdown(response):
-		Thread(target=server.shutdown).start()
-		return response
+		return self.send_file(
+			m3ufile,
+			as_attachment=True,
+			mimetype='application/mpegurl; charset=utf-8'
+		)
 
-	return send_file(
-		m3ufile,
-		as_attachment=True,
-		mimetype='application/mpegurl; charset=utf-8'
-	)
+	def run(self): self.server.serve_forever()
+	def shutdown(self): self.server.shutdown()
+# end Server()
 
 def _request(s):
+	import requests
+	from base64 import b64decode
 	try:
 		requests.get(
 			url = s['foo_httpcontrol']['url'],

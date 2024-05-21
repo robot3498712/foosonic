@@ -1,6 +1,6 @@
 # foosonic
 
-## [0.2.2] (2024-05-20)
+## [0.2.3] (2024-05-21)
 
 
 ### Dependencies & preconditions

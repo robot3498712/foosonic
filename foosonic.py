@@ -675,6 +675,7 @@ def add(ids, silent=False):
 
 # threadpool dispatch
 def tAddAlbumById(id):
+	if evTerm.is_set(): raise KeyboardInterrupt
 	paths, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -693,6 +694,7 @@ def tAddAlbumById(id):
 	return
 
 def tAddAlbumByIdStream(id):
+	if evTerm.is_set(): raise KeyboardInterrupt
 	urls, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -710,6 +712,7 @@ def tAddAlbumByIdStream(id):
 	return
 
 def tAddStation(id):
+	if evTerm.is_set(): raise KeyboardInterrupt
 	urls, label = [], None
 	for k, v in cfg.radio.items():
 		if v == id:
@@ -1031,7 +1034,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.2.2')
+	parser.add_argument('-v', '--version', action='version', version='0.2.3')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)

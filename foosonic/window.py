@@ -1,5 +1,3 @@
-from foosonic import connection
-
 def _destroy(qin, h):
 	_ = qin.get()
 	h.destroy()
@@ -55,6 +53,7 @@ def coverArt(qin, qout, e, _):
 	from threading import Thread
 	from PIL import Image, ImageTk
 	from io import BytesIO
+	from foosonic import connection
 
 	state = qin.get()
 	state.connector = connection.LibSoniConn()

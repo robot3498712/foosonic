@@ -105,11 +105,15 @@ function lazyload() {
 		let scrollTop = window.pageYOffset;
 		lazyloadImages.forEach(function(img) {
 			if (img.offsetTop < (window.innerHeight + scrollTop)) {
-				img.src = img.dataset.src;
-				img.classList.remove('lazy');
-				$(img).click(function() {
-					lightbox.init(this, 100); // px guess
-				});
+				let preloadImage = new Image();
+				preloadImage.onload = function() {
+					img.src = preloadImage.src;
+					img.classList.remove('lazy');
+					$(img).click(function() {
+						lightbox.init(this, 100); // px guess
+					});
+				};
+				preloadImage.src = img.dataset.src;
 			}
 		});
 		if (lazyloadImages.length == 0) {
