@@ -5,17 +5,19 @@ from flask import Flask, send_file, after_this_request
 from flask_compress import Compress
 from werkzeug.serving import make_server
 
-app, server, m3ufile = Flask(__name__), None, None
-Compress(app)
+app, compress, server, m3ufile = Flask(__name__), Compress(), None, None
 
 '''
 https://tedboy.github.io/flask/_modules/werkzeug/serving.html
+https://github.com/colour-science/flask-compress
 https://stackoverflow.com/a/45017691
 https://stackoverflow.com/questions/14888799/disable-console-messages-in-flask-server
 '''
 class Server(Thread):
-	def __init__(self, app, state):
+	def __init__(self, state):
 		Thread.__init__(self)
+		compress.init_app(app)
+		app.config['COMPRESS_MIMETYPES'].append('application/mpegurl')
 		self.server = make_server(host=state.server['self']['listen'], port=state.server['self']['port'], app=app)
 		self.ctx = app.app_context()
 		self.ctx.push()
@@ -44,7 +46,7 @@ def _serve():
 	return send_file(
 		m3ufile,
 		as_attachment=True,
-		mimetype='Content-Type: application/mpegurl; charset=utf-8'
+		mimetype='application/mpegurl; charset=utf-8'
 	)
 
 def _request(s):
@@ -72,7 +74,7 @@ def playlist(qin, qout, e, _):
 	req.daemon = True
 	req.start()
 
-	server = Server(app, state)
+	server = Server(state)
 	server.start()
 	server.join()
 
