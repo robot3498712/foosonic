@@ -106,6 +106,7 @@ function lazyload() {
 		lazyloadImages.forEach(function(img) {
 			if (img.offsetTop < (window.innerHeight + scrollTop)) {
 				let preloadImage = new Image();
+				preloadImage.src = img.dataset.src;
 				preloadImage.onload = function() {
 					img.src = preloadImage.src;
 					img.classList.remove('lazy');
@@ -113,7 +114,6 @@ function lazyload() {
 						lightbox.init(this, 100); // px guess
 					});
 				};
-				preloadImage.src = img.dataset.src;
 			}
 		});
 		if (lazyloadImages.length == 0) {
@@ -247,59 +247,64 @@ document.addEventListener("DOMContentLoaded", function(event) {
 		onNavigate(this.value);
 	});
 
-	i = -1;
-	for (let page=0; page<=j; page++) {
-		let opt = document.createElement("option");
-		opt.value = page;
-		opt.innerHTML = Object.values(pagedata[page])[0].split(' ', 3).join(' ');
-		sel.append(opt);
+	// point of this is establishing the scaffold in firefox
+	let preloadLazyImage = new Image();
+	preloadLazyImage.src = "/static/lazyload.png";
+	preloadLazyImage.onload = function() {
+		i = -1;
+		for (let page=0; page<=j; page++) {
+			let opt = document.createElement("option");
+			opt.value = page;
+			opt.innerHTML = Object.values(pagedata[page])[0].split(' ', 3).join(' ');
+			sel.append(opt);
 
-		let cp = document.createElement("div");
-		cp.id = `page-${page}`;
-		if (page) cp.setAttribute("class", "hidden");
-		container.appendChild(cp);
+			let cp = document.createElement("div");
+			cp.id = `page-${page}`;
+			if (page) cp.setAttribute("class", "hidden");
+			container.appendChild(cp);
 
-		let row;
-		for (d in pagedata[page]) {
-			if (++i % perRow == 0) {
-				row = document.createElement("div");
-				row.setAttribute("class", "grid-container");
-				cp.appendChild(row);
-			}
-			let col = document.createElement("div");
-			col.setAttribute("class", "grid-element");
-			row.appendChild(col);
-
-			let img = document.createElement("img");
-			img.setAttribute("class", "lazy");
-			img.setAttribute("src", "/static/lazyload.png");
-			img.setAttribute("data-src", `/coverart/250/${d}`);
-			col.appendChild(img);
-
-			let a = document.createElement("a");
-			a.setAttribute("href", "javascript:void(0)");
-			a.setAttribute("data-src", d);
-			$(a).click(function(ev) {
-				onClickAlbum(ev);
-			});
-			col.appendChild(a);
-
-			let p = document.createElement("p");
-			let span = document.createElement("span");
-			$(span).html(pagedata[page][d]);
-			p.appendChild(span);
-			a.appendChild(p);
-		}
-		if (page==j && overshoot) { // style fix
-			let fill = perRow - overshoot;
-			for (let i=0; i<fill; i++) {
+			let row;
+			for (d in pagedata[page]) {
+				if (++i % perRow == 0) {
+					row = document.createElement("div");
+					row.setAttribute("class", "grid-container");
+					cp.appendChild(row);
+				}
 				let col = document.createElement("div");
 				col.setAttribute("class", "grid-element");
 				row.appendChild(col);
+
+				let img = document.createElement("img");
+				img.setAttribute("class", "lazy");
+				img.setAttribute("src", preloadLazyImage.src);
+				img.setAttribute("data-src", `/coverart/250/${d}`);
+				col.appendChild(img);
+
+				let a = document.createElement("a");
+				a.setAttribute("href", "javascript:void(0)");
+				a.setAttribute("data-src", d);
+				$(a).click(function(ev) {
+					onClickAlbum(ev);
+				});
+				col.appendChild(a);
+
+				let p = document.createElement("p");
+				let span = document.createElement("span");
+				$(span).html(pagedata[page][d]);
+				p.appendChild(span);
+				a.appendChild(p);
+			}
+			if (page==j && overshoot) { // style fix
+				let fill = perRow - overshoot;
+				for (let i=0; i<fill; i++) {
+					let col = document.createElement("div");
+					col.setAttribute("class", "grid-element");
+					row.appendChild(col);
+				}
 			}
 		}
-	}
 
-	listen();
-	lazyload();
+		listen();
+		lazyload();
+	};
 });

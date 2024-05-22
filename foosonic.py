@@ -641,7 +641,7 @@ def add(ids, silent=False):
 			fnx.append(partial(fn, id=id))
 		# end FOR
 		# preserving FIFO, flush to file on step
-		with tqdm(total=len(ids), desc='Add') as pbar:
+		with tqdm(total=len(ids), desc='Add', disable=silent) as pbar:
 			with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
 				for fn in fnx: tasks.append(exe.submit(fn))
 				for _ in as_completed(tasks):
