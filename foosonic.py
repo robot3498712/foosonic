@@ -25,10 +25,11 @@ class State:
 		self.serve = u""
 
 class Page:
-	def __init__(self, key, size):
+	def __init__(self, key, size, pbar=None):
 		self._key = key
 		self._size = size
 		self._len = 0
+		self.pbar = pbar
 
 		with lock:
 			if not self._key in state._data:
@@ -70,6 +71,9 @@ class Page:
 					break
 				case _:
 					break
+
+			try: self.pbar.update(1)
+			except: pass
 
 			if (_len < _psize) or (self._len >= self._size): break
 			_offset = _psize * i
@@ -352,7 +356,8 @@ def listArtists():
 # @size unlimited
 def getAlbums(ltype, _size):
 	state._data, state.choices = {}, []
-	Page('albumList', _size).fetch(state.connector.conn.getAlbumList, ltype)
+	with tqdm(desc=ltype.title()) as pbar:
+		Page('albumList', _size, pbar=pbar).fetch(state.connector.conn.getAlbumList, ltype)
 	for album in state._data['albumList']['album']:
 		state.choices.append(Choice(album['id'], name=f"{album['artist']}/{album['title']}"))
 	del state._data
@@ -369,7 +374,8 @@ def getAlbumsByYear(query, _size):
 		_fromYear, _toYear = _q[0].strip(), _q[1].strip()
 	else:
 		_fromYear = _toYear = query
-	Page('albumList', _size).fetch(state.connector.conn.getAlbumList, 'byYear', fromYear=_fromYear, toYear=_toYear)
+	with tqdm(desc='Year') as pbar:
+		Page('albumList', _size, pbar=pbar).fetch(state.connector.conn.getAlbumList, 'byYear', fromYear=_fromYear, toYear=_toYear)
 	for album in state._data['albumList']['album']:
 		alDict[f"{album['artist']}/{album['title']}"] = album['id']
 	del state._data
@@ -438,13 +444,13 @@ def getAlbumsByGenre(query, _size):
 		print("update the genre cache first: -ug")
 		return
 	# tbd: show warning if genre cache is outdated, say older than 1 month
-	with open(genrescache, mode="rb") as f: genres = pickle.load(f)
+	with open(genrescache, mode="rb") as f: choices = pickle.load(f)
 	alDict, state._data = {}, {}
-	if genres:
+	if choices:
 		genreQueryList = []
-		for genre in genres:
-			if query.lower() in genre['value'].lower():
-				genreQueryList.append(genre['value'])
+		for choice in choices:
+			if query.lower() in choice.name.lower():
+				genreQueryList.append(choice.value)
 		if _len := len(genreQueryList):
 			tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _size=_size)
 			with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
@@ -465,15 +471,14 @@ def getAlbumsByGenre(query, _size):
 
 # threadpool dispatch
 def tGetSearch(fn, _key, _query, _size, pbar=None):
-	Page(_key, _size).fetch(fn, _query)
-	pbar.update(1)
+	Page(_key, _size, pbar=pbar).fetch(fn, _query)
 
 def tGetArtist(id, _size):
 	Page('artist', _size).fetch(state.connector.conn.getArtist, id)
 
 def getSearch(query, _size, _all=False):
 	fnx, state._data, alDict, songDict, arIDs = [], {}, {}, {}, set()
-	with tqdm(total=2, desc='Search') as pbar:
+	with tqdm(desc='Search') as pbar:
 		fnx.append(partial(tGetSearch, fn=state.connector.conn.search2, _key='searchResult2', _query=query, _size=_size, pbar=pbar))
 		fnx.append(partial(tGetSearch, fn=state.connector.conn.search3, _key='searchResult3', _query=query, _size=_size, pbar=pbar))	
 		with ThreadPoolExecutor(2) as exe:
