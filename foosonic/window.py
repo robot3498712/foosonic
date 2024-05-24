@@ -1,11 +1,27 @@
+from threading import Thread
+from foosonic import connection
+
+tk, Image, ImageTk, BytesIO = None, None, None, None
+
+def proc(qout, qin, evParent, evChild, evTerm):
+	global tk, Image, ImageTk, BytesIO
+	import tkinter as tk
+	from PIL import Image, ImageTk
+	from io import BytesIO
+
+	try:
+		evChild.wait()
+	except KeyboardInterrupt:
+		evTerm.set()
+		return
+	fn = qin.get()
+	fn(qin, qout, evParent, evChild)
+
 def _destroy(qin, h):
 	_ = qin.get()
 	h.destroy()
 
 def manual(qin, qout, e, _):
-	import tkinter as tk
-	from threading import Thread
-
 	state = qin.get()
 
 	wnd = tk.Tk()
@@ -49,12 +65,6 @@ alt-r\t\tradio
 	e.set()
 
 def coverArt(qin, qout, e, _):
-	import tkinter as tk
-	from threading import Thread
-	from PIL import Image, ImageTk
-	from io import BytesIO
-	from foosonic import connection
-
 	state = qin.get()
 	state.connector = connection.LibSoniConn()
 

@@ -1,12 +1,16 @@
+from threading import Thread
+from foosonic import connection
+
 state, _evParent, _qout, _qin = None, None, None, None
 
 class Server():
 	def __init__(self):
-		import io, json, logging, click
+		import json, logging, click
+		from io import BytesIO 
 		from flask import Flask, send_file, request, render_template
 		from flask_compress import Compress
 
-		self.io = io
+		self.BytesIO = BytesIO
 		self.json = json
 		self.send_file = send_file
 		self.request = request
@@ -39,7 +43,7 @@ class Server():
 		except: pass
 		if data:
 			return self.send_file(
-				self.io.BytesIO(data),
+				self.BytesIO(data),
 				mimetype='image/png',
 				download_name=f"{id}.png")
 		return self.send_file(
@@ -77,9 +81,6 @@ def _update(qin, evChild):
 		evChild.clear()
 
 def webapp(qin, qout, evParent, evChild):
-	from foosonic import connection
-	from threading import Thread
-
 	global state, _evParent, _qout, _qin
 	state = qin.get()
 	state.connector = connection.LibSoniConn()
@@ -96,3 +97,12 @@ def webapp(qin, qout, evParent, evChild):
 
 	qout.put("\x00")
 	evParent.set()
+
+def proc(qout, qin, evParent, evChild, evTerm):
+	try: 
+		evChild.wait()
+	except KeyboardInterrupt:
+		evTerm.set()
+		return
+	fn = qin.get()
+	fn(qin, qout, evParent, evChild)

@@ -80,6 +80,14 @@ class Page:
 		# end FOR
 	# end fetch()
 
+class Choice(dict):
+	def __init__(self, value, name=None, enabled=False):
+		super().__init__(value=value, name=name, enabled=enabled)
+		if 'name' not in self or self['name'] is None:
+			self['name'] = str(value)
+
+	def __getattr__(self, attr): return self[attr]
+
 
 ''' --------------- helpers ---------------  '''
 
@@ -921,27 +929,42 @@ def qCloser(qin, qout):
 def show(fn):
 	global pool, evTerm, wndQs, webProc
 
-	while True: # wait for procMan
-		try: p, qin, qout, evParent, evChild = pool.popleft()
-		except IndexError: sleep(0.1)
-		else: break
-
 	sharedState = copy(state)
 	sharedState.connector = None
+	sharedState.seen = None
+	sharedState.call = None
 	if fn in {prompt.action, prompt.mode, prompt.backToList, prompt.nameSession, prompt.listSessions, prompt.modeSession, prompt.confRmSession, window.coverArt, window.manual, remote.playlist}:
 		sharedState.choices = None
 		sharedState.alProp = None
 		sharedState.mode = args['mode']
 		sharedState.action = args['action'] if 'action' in args else None
 		sharedState.sessmode = args['sessmode'] if 'sessmode' in args else None
-	if fn in {window.coverArt, window.manual}:
-		wndQs.append(qout)
-	elif fn in {wsgi.webapp}:
-		webProc = (p, qin, qout, evParent, evChild)
-	if fn in {remote.playlist, wsgi.webapp}:
-		sharedState.server = cfg.server
-	sharedState.seen = None
-	sharedState.call = None
+
+	# threaded modules spin up on demand
+	match fn:
+		case wsgi.webapp:
+			(p, qin, qout, evParent, evChild) = webProc
+			if p is None:
+				(p, qin, qout, evParent, evChild) = makeProc(wsgi.proc)
+				p.start()
+				webProc = (p, qin, qout, evParent, evChild)
+				sharedState.server = cfg.server
+
+		case remote.playlist:
+			(p, qin, qout, evParent, evChild) = makeProc(remote.proc)
+			p.start()
+			sharedState.server = cfg.server
+
+		case window.coverArt | window.manual:
+			(p, qin, qout, evParent, evChild) = makeProc(window.proc)
+			p.start()
+			wndQs.append(qout)
+
+		case _:
+			while True: # wait for procMan
+				try: p, qin, qout, evParent, evChild = pool.popleft()
+				except IndexError: sleep(0.1)
+				else: break
 
 	qout.put(fn)
 	qout.put(sharedState)
@@ -997,14 +1020,20 @@ def show(fn):
 		evTerm.set()
 		raise KeyboardInterrupt
 
+def makeProc(target, tty=None):
+	qin, qout, evParent, evChild = mpQueue(), mpQueue(), mpEvent(), mpEvent()
+	if tty is not None:
+		args=(qin, qout, evParent, evChild, evTerm, tty)
+	else:
+		args=(qin, qout, evParent, evChild, evTerm)
+	return (Process(target=target, args=args), qin, qout, evParent, evChild)
+
 def procMan():
 	global pool, procs, evTerm
 	tty = True if os.name == 'posix' else False
 	while not evTerm.is_set():
 		if not len(pool):
-			evChild, evParent = mpEvent(), mpEvent()
-			qin, qout = mpQueue(), mpQueue()
-			p = Process(target=prompt.proc, args=(qin, qout, evParent, evChild, evTerm, tty))
+			(p, qin, qout, evParent, evChild) = makeProc(prompt.proc, tty)
 			pool.append([p, qin, qout, evParent, evChild])
 			procs.append(p)
 			p.start()
@@ -1039,7 +1068,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.2.3')
+	parser.add_argument('-v', '--version', action='version', version='0.2.4')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -1162,7 +1191,6 @@ if __name__ == "__main__":
 	from time import time, strftime, localtime, sleep
 	from math import ceil
 	from tqdm import tqdm
-	from InquirerPy.base.control import Choice
 	from foosonic import prompt, window, remote, wsgi, connection
 	from _config import cfg
 

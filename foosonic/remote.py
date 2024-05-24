@@ -87,3 +87,12 @@ def playlist(qin, qout, e, _):
 
 	qout.put("\x00\0served")
 	e.set()
+
+def proc(qout, qin, evParent, evChild, evTerm):
+	try:
+		evChild.wait()
+	except KeyboardInterrupt:
+		evTerm.set()
+		return
+	fn = qin.get()
+	fn(qin, qout, evParent, evChild)

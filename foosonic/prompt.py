@@ -1,25 +1,24 @@
-from InquirerPy import inquirer, get_style
-# on topic of overrides see https://github.com/kazhala/InquirerPy/issues/42
-# for keys consult Python3\Lib\site-packages\prompt_toolkit\keys.py
+sig, inquirer, style = None, None, None
 
-sig = None
-
-# inquirer style overrides
-# border=True : rendering bugged, and poor performance
-style = get_style({
-	"question": "#ff9d00 bold",
-	"marker": "#ff9d00 bold",
-	"fuzzy_match": "green",
-	"fuzzy_border": "#ff9d00",
-	"fuzzy_info": "#ff9d00",
-	"instruction": "#ff9d00",
-	"long_instruction": "#ff9d00",
-	"separator": "#ff9d00 bold"
-}, style_override=False)
-
-# general purpose multiprocessing target
-# placed in this module to speed up rather sluggish prompt instantiation
 def proc(qout, qin, evParent, evChild, evTerm, tty):
+	global inquirer, style
+	from InquirerPy import inquirer, get_style
+	# on topic of overrides see https://github.com/kazhala/InquirerPy/issues/42
+	# for keys consult Python3\Lib\site-packages\prompt_toolkit\keys.py
+
+	# inquirer style overrides
+	# border=True : rendering bugged, and poor performance
+	style = get_style({
+		"question": "#ff9d00 bold",
+		"marker": "#ff9d00 bold",
+		"fuzzy_match": "green",
+		"fuzzy_border": "#ff9d00",
+		"fuzzy_info": "#ff9d00",
+		"instruction": "#ff9d00",
+		"long_instruction": "#ff9d00",
+		"separator": "#ff9d00 bold"
+	}, style_override=False)
+
 	if tty:
 		import sys
 		sys.stdin = open('/dev/tty', 'r')
