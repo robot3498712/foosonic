@@ -1058,7 +1058,8 @@ def dispatch(exit=True, mp=True):
 			if not _call: raise IndexError
 		except IndexError: break
 		_call()
-	while hasattr(state, '_add'): sleep(0.05)
+	if (args['foo'] and "remote" in args['foo']):
+		while hasattr(state, '_add'): sleep(0.05)
 	evTerm.set()
 	if exit: sys.exit(0)
 
@@ -1069,7 +1070,7 @@ def main():
 
 	parser = ArgumentParser(description='foosonic client')
 	parser.add_argument('-v', '--version', action='version', version='0.2.4')
-	parser.add_argument('-a', '--add', help='add to foobar, such as <album-id>', required=False)
+	parser.add_argument('-a', '--add', help='add to foobar, such as <id1>[,<id2>]', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
 	parser.add_argument('-s', '--search', help='issue search query', required=False)
@@ -1159,7 +1160,7 @@ def main():
 		dispatch()
 
 	if args['add']:
-		state.call.append(lambda: add([args['add']]))
+		state.call.append(lambda: add(args['add'].split(',')))
 		dispatch()
 
 	if args['details']:
