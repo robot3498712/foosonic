@@ -5,6 +5,8 @@ foosonic client by robot
 	https://github.com/kazhala/InquirerPy | https://inquirerpy.readthedocs.io/en/latest/index.html
 '''
 
+class Process(object): pass
+
 class State:
 	def __init__(self):
 		self.connector = None
@@ -105,12 +107,12 @@ def clear():
 
 ''' --------------- windows ---------------  '''
 
-def wndCoverArt():
+def tWndCoverArt():
 	t = Thread(target=show, args=[window.coverArt])
 	t.daemon = True
 	t.start()
 
-def wndManual():
+def tWndManual():
 	t = Thread(target=show, args=[window.manual])
 	t.daemon = True
 	t.start()
@@ -118,22 +120,25 @@ def wndManual():
 
 ''' --------------- remotes ---------------  '''
 
-def remotePlaylist(m3ufile):
-	state.serve = m3ufile
-	t = Thread(target=show, args=[remote.playlist])
-	t.daemon = True
-	t.start()
+def tRemote(m3ufile=None):
+	(*_, e) = proc.remote
+	if e: e.set()
+	else:
+		state.serve = m3ufile
+		t = Thread(target=show, args=[remote.playlist])
+		t.daemon = True
+		t.start()
 
 
 ''' --------------- webapps ---------------  '''
 
-def webapp():
-	(p, _, qout, _, evChild) = webProc
-	if p:
+def tWeb():
+	(*_, qout, _, evChild) = proc.web
+	if qout:
 		qout.put(state.choices)
 		evChild.set()
 	else:
-		t = Thread(target=show, args=[wsgi.webapp])
+		t = Thread(target=show, args=[web.app])
 		t.daemon = True
 		t.start()
 
@@ -267,7 +272,7 @@ def listStations():
 	state.call.append(lambda: dlgAction())
 
 def listAlbums():
-	webapp()
+	tWeb()
 	show(prompt.listAlbums)
 
 	if state.sig == "\x06":
@@ -635,6 +640,7 @@ def getAlbumDetailsById(id):
 def add(ids, silent=False):
 	state._data, fnx, tasks, step, header, m3ufile = {}, [], [], 50, False, os.path.join(sd, f"./cache/{int(time())}.m3u8")
 	ids = deque([str(x) for x in ids if x is not None])
+	if (args['foo'] and "remote" in args['foo']): tRemote(m3ufile)
 	with open(m3ufile, mode="a", encoding="utf8") as fh:	
 		for id in ids:
 			if not "://" in id:
@@ -678,13 +684,13 @@ def add(ids, silent=False):
 	try:
 		if os.stat(m3ufile).st_size < 12: raise ValueError
 		if (args['foo'] and "remote" in args['foo']):
-			remotePlaylist(m3ufile)
+			tRemote()
 		else:
 			p = Popen([cfg.foo, '/add', m3ufile])
 	except:
 		if not silent: print("unknown error adding playlist")
 	else:
-		state._add = True
+		state._remote = True
 
 # threadpool dispatch
 def tAddAlbumById(id):
@@ -906,29 +912,24 @@ def updateArtists():
 ''' --------------- processing ---------------
 prompt_toolkit is leaking memory, so we create a new process for each prompt
 - pool used to minimize latency
-	1) event loop using threading. see dispatch()->procMan()
-	2) child process pool (size=2), waiting for tasks
-	3) on job task child_1, and add a child process to the pool
-- show() reused for tk GUIs, remotes, web apps '''
+	1) event loop using threading: dispatch()->pman()->show()
+	2) child process pool (size=2), waiting for prompt tasks '''
 
 def wndPopper():
-	global wndQs
 	while True: 
-		try: _q = wndQs.pop()
+		try: q = proc.wndQs.pop()
 		except IndexError: break
 		else:
-			try: _q.put('')
+			try: q.put('')
 			except: pass
 
 def qCloser(qin, qout):
 	qin.close()
-	qin.join_thread()
 	qout.close()
+	qin.join_thread()
 	qout.join_thread()
 
 def show(fn):
-	global pool, evTerm, wndQs, webProc
-
 	sharedState = copy(state)
 	sharedState.connector = None
 	sharedState.seen = None
@@ -942,30 +943,30 @@ def show(fn):
 
 	# threaded modules spin up on demand
 	match fn:
-		case wsgi.webapp:
-			(p, qin, qout, evParent, evChild) = webProc
-			if p is None:
-				(p, qin, qout, evParent, evChild) = makeProc(wsgi.proc)
-				p.start()
-				webProc = (p, qin, qout, evParent, evChild)
-				sharedState.server = cfg.server
+		case web.app:
+			p = pmake(web.proc)
+			p[0].start()
+			proc.web = p
+			sharedState.server = cfg.server
 
 		case remote.playlist:
-			(p, qin, qout, evParent, evChild) = makeProc(remote.proc)
-			p.start()
+			p = pmake(remote.proc)
+			p[0].start()
+			proc.remote = p
 			sharedState.server = cfg.server
 
 		case window.coverArt | window.manual:
-			(p, qin, qout, evParent, evChild) = makeProc(window.proc)
-			p.start()
-			wndQs.append(qout)
+			p = pmake(window.proc)
+			p[0].start()
+			proc.wndQs.append(p[2])
 
 		case _:
-			while True: # wait for procMan
-				try: p, qin, qout, evParent, evChild = pool.popleft()
-				except IndexError: sleep(0.1)
+			while True: # wait for man()
+				try: p = proc.pool.popleft()
+				except IndexError: sleep(0.05)
 				else: break
 
+	(_, qin, qout, evParent, evChild) = p
 	qout.put(fn)
 	qout.put(sharedState)
 	evChild.set()
@@ -981,7 +982,8 @@ def show(fn):
 
 		# instructions not requiring a new prompt
 		if r.startswith("\x00"):
-			if 'served' in r: del state._add
+			if 'served' in r: del state._remote
+			proc.remote = (None, None, None, None, None)
 			return qCloser(qin, qout)
 		elif r == "\x01":
 			opendir(getAlbumPathById(state.alId))
@@ -989,18 +991,18 @@ def show(fn):
 			alId = (r.split("\0"))[1]
 			opendir(getAlbumPathById(alId))
 		elif r == "\x07":
-			if len(wndQs): wndPopper()
-			else: wndCoverArt()
+			if len(proc.wndQs): wndPopper()
+			else: tWndCoverArt()
 		elif r.startswith("\x07\0"):
 			alId = (r.split("\0"))[1]
-			if len(wndQs) and alId == state.alId:
+			if len(proc.wndQs) and alId == state.alId:
 				wndPopper()
 			else:
 				state.alId = alId
-				wndCoverArt()
+				tWndCoverArt()
 		elif r == "\x10":
 			import webbrowser
-			webbrowser.open(f"http://{cfg.server['wsgi']['ip']}:{cfg.server['wsgi']['port']}", new=2, autoraise=True)
+			webbrowser.open(f"http://{cfg.server['web']['ip']}:{cfg.server['web']['port']}", new=2, autoraise=True)
 		elif r.startswith("\x20\0"):
 			(_, args['foo'], args['mode'], alIdsStr) = r.split("\0")
 			add(alIdsStr.split(","), silent=True)
@@ -1008,7 +1010,7 @@ def show(fn):
 			# a more sophisticated approach will yield bool result
 			qout.put('')
 		elif r == "\x42":
-			wndManual()
+			tWndManual()
 
 	state.selectedChoice = r.selectedChoice
 	state.selectedChoiceIndex = r.selectedChoiceIndex
@@ -1020,37 +1022,32 @@ def show(fn):
 		evTerm.set()
 		raise KeyboardInterrupt
 
-def makeProc(target, tty=None):
-	qin, qout, evParent, evChild = mpQueue(), mpQueue(), mpEvent(), mpEvent()
+def pmake(target, tty=None):
+	qe = (mpQueue(), mpQueue(), mpEvent(), mpEvent())
 	if tty is not None:
-		args=(qin, qout, evParent, evChild, evTerm, tty)
-	else:
-		args=(qin, qout, evParent, evChild, evTerm)
-	return (Process(target=target, args=args), qin, qout, evParent, evChild)
+		return (Process(target=target, args=(*qe, evTerm, tty)), *qe)
+	return (Process(target=target, args=(*qe, evTerm)), *qe)
 
-def procMan():
-	global pool, procs, evTerm
+def pman():
 	tty = True if os.name == 'posix' else False
 	while not evTerm.is_set():
-		if not len(pool):
-			(p, qin, qout, evParent, evChild) = makeProc(prompt.proc, tty)
-			pool.append([p, qin, qout, evParent, evChild])
-			procs.append(p)
-			p.start()
+		if not len(proc.pool):
+			p = pmake(prompt.proc, tty)
+			proc.pool.append([*p])
+			proc.procs.append(p[0])
+			p[0].start()
 		sleep(0.1)
-	for p in procs:
+	for p in proc.procs:
 		p.terminate()
 		p.join()
-	(p, *_) = webProc
-	if p:
-		p.terminate()
-		p.join()
+	for (p, *_) in [proc.web, proc.remote]:
+		if p:
+			p.terminate()
+			p.join()
 
-def dispatch(exit=True, mp=True):
-	global evTerm
-	evTerm = mpEvent()
-	if mp:
-		t = Thread(target=procMan)
+def dispatch(man=True, exit=True):
+	if man:
+		t = Thread(target=pman)
 		t.start()
 	while True:
 		try:
@@ -1059,7 +1056,7 @@ def dispatch(exit=True, mp=True):
 		except IndexError: break
 		_call()
 	if (args['foo'] and "remote" in args['foo']):
-		while hasattr(state, '_add'): sleep(0.05)
+		while hasattr(state, '_remote'): sleep(0.05)
 	evTerm.set()
 	if exit: sys.exit(0)
 
@@ -1069,7 +1066,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.2.4')
+	parser.add_argument('-v', '--version', action='version', version='0.2.5')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <id1>[,<id2>]', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -1117,24 +1114,6 @@ def main():
 		state.call.append(lambda: getStations())
 		dispatch()
 
-	if args['updategenres']:
-		print("updating genres..")
-		state.call.append(lambda: updateGenres())
-		dispatch(exit=False, mp=False)
-		print("done")
-		sys.exit(0)
-
-	if args['updateartists']:
-		print("updating artists..")
-		state.call.append(lambda: updateArtists())
-		dispatch(exit=False, mp=False)
-		print("done")
-		sys.exit(0)
-
-	if args['scan']:
-		state.call.append(lambda: scan())
-		dispatch(mp=False)
-
 	if args['year']:
 		state.call.append(lambda: getAlbumsByYear(args['year'], state._size))
 		dispatch()
@@ -1159,9 +1138,27 @@ def main():
 		state.call.append(lambda: getSearch(args['search'], state._size, _all=searchall))
 		dispatch()
 
+	if args['scan']:
+		state.call.append(lambda: scan())
+		dispatch(man=False)
+
 	if args['add']:
 		state.call.append(lambda: add(args['add'].split(',')))
-		dispatch()
+		dispatch(man=False, exit=True)
+
+	if args['updategenres']:
+		print("updating genres..")
+		state.call.append(lambda: updateGenres())
+		dispatch(man=False, exit=False)
+		print("done")
+		sys.exit(0)
+
+	if args['updateartists']:
+		print("updating artists..")
+		state.call.append(lambda: updateArtists())
+		dispatch(man=False, exit=False)
+		print("done")
+		sys.exit(0)
 
 	if args['details']:
 		if not "://" in args['details']:
@@ -1192,11 +1189,12 @@ if __name__ == "__main__":
 	from time import time, strftime, localtime, sleep
 	from math import ceil
 	from tqdm import tqdm
-	from foosonic import prompt, window, remote, wsgi, connection
+	from foosonic import prompt, window, remote, web, connection
 	from _config import cfg
 
-	sd, args, state, lock = os.path.dirname(os.path.realpath(__file__)), None, None, Lock()
-	pool, procs, wndQs, evTerm, webProc = deque(maxlen=2), deque(maxlen=20), deque(), None, (None, None, None, None, None)
+	sd, args, state, lock, evTerm, proc = os.path.dirname(os.path.realpath(__file__)), None, None, Lock(), mpEvent(), Process()
+	proc.pool, proc.procs, proc.wndQs = deque(maxlen=2), deque(maxlen=20), deque()
+	proc.web = proc.remote = (None, None, None, None, None)
 
 	try:
 		main()

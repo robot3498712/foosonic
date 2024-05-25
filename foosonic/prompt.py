@@ -3,11 +3,11 @@ sig, inquirer, style = None, None, None
 def proc(qout, qin, evParent, evChild, evTerm, tty):
 	global inquirer, style
 	from InquirerPy import inquirer, get_style
-	# on topic of overrides see https://github.com/kazhala/InquirerPy/issues/42
-	# for keys consult Python3\Lib\site-packages\prompt_toolkit\keys.py
+	''' on topic of overrides see https://github.com/kazhala/InquirerPy/issues/42
+	for keys consult Python3\Lib\site-packages\prompt_toolkit\keys.py
 
-	# inquirer style overrides
-	# border=True : rendering bugged, and poor performance
+	inquirer style overrides
+	border=True : rendering bugged, and poor performance '''
 	style = get_style({
 		"question": "#ff9d00 bold",
 		"marker": "#ff9d00 bold",
@@ -25,12 +25,11 @@ def proc(qout, qin, evParent, evChild, evTerm, tty):
 	try: # handle search abort
 		evChild.wait()
 	except KeyboardInterrupt:
-		evTerm.set()
-		return
+		return evTerm.set()
+
 	fn = qin.get()
 	fn(qin, qout, evParent, evChild)
 
-# prompts
 def confRmSession(qin, qout, e, _):
 	state = qin.get()
 	try:

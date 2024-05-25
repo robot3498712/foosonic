@@ -3,24 +3,6 @@ from foosonic import connection
 
 tk, Image, ImageTk, BytesIO = None, None, None, None
 
-def proc(qout, qin, evParent, evChild, evTerm):
-	global tk, Image, ImageTk, BytesIO
-	import tkinter as tk
-	from PIL import Image, ImageTk
-	from io import BytesIO
-
-	try:
-		evChild.wait()
-	except KeyboardInterrupt:
-		evTerm.set()
-		return
-	fn = qin.get()
-	fn(qin, qout, evParent, evChild)
-
-def _destroy(qin, h):
-	_ = qin.get()
-	h.destroy()
-
 def manual(qin, qout, e, _):
 	state = qin.get()
 
@@ -72,8 +54,7 @@ def coverArt(qin, qout, e, _):
 		r = state.connector.conn.getCoverArt(state.alId)
 	except:
 		qout.put("\x00")
-		e.set()
-		return
+		return e.set()
 
 	data = r.read()
 	if data:
@@ -96,3 +77,21 @@ def coverArt(qin, qout, e, _):
 
 	qout.put("\x00")
 	e.set()
+
+def _destroy(qin, h):
+	_ = qin.get()
+	h.destroy()
+
+def proc(qout, qin, evParent, evChild, evTerm):
+	global tk, Image, ImageTk, BytesIO
+	import tkinter as tk
+	from PIL import Image, ImageTk
+	from io import BytesIO
+
+	try:
+		evChild.wait()
+	except KeyboardInterrupt:
+		return evTerm.set()
+
+	fn = qin.get()
+	fn(qin, qout, evParent, evChild)

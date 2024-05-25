@@ -1,6 +1,6 @@
 from threading import Thread
 
-server, m3ufile = None, None
+server = None
 
 '''
 https://tedboy.github.io/flask/_modules/werkzeug/serving.html
@@ -16,6 +16,7 @@ class Server(Thread):
 		from flask_compress import Compress
 		from werkzeug.serving import make_server
 
+		self.state = state
 		self.after_this_request = after_this_request
 		self.send_file = send_file
 
@@ -26,7 +27,7 @@ class Server(Thread):
 
 		compress.init_app(app)
 		app.config['COMPRESS_MIMETYPES'].append('application/mpegurl')
-		self.server = make_server(host=state.server['self']['listen'], port=state.server['self']['port'], app=app)
+		self.server = make_server(host=state.server['remote']['listen'], port=state.server['remote']['port'], app=app)
 		self.ctx = app.app_context()
 		self.ctx.push()
 
@@ -45,7 +46,7 @@ class Server(Thread):
 			return response
 
 		return self.send_file(
-			m3ufile,
+			self.state.serve,
 			as_attachment=True,
 			mimetype='application/mpegurl; charset=utf-8'
 		)
@@ -54,16 +55,17 @@ class Server(Thread):
 	def shutdown(self): self.server.shutdown()
 # end Server()
 
-def _request(s):
+def _request(e, s):
 	import requests
 	from base64 import b64decode
+	e.wait()
 	try:
 		requests.get(
 			url = s['foo_httpcontrol']['url'],
 			auth = requests.auth.HTTPBasicAuth(s['foo_httpcontrol']['user'], b64decode(s['foo_httpcontrol']['pswd']).decode("utf-8")),
 			params = {
 				'cmd': 'CmdLine',
-				'param1': f"/add http://{s['self']['ip']}:{s['self']['port']}/cache/playlist.m3u8",
+				'param1': f"/add http://{s['remote']['ip']}:{s['remote']['port']}/cache/playlist.m3u8",
 			},
 			timeout = 3,
 		)
@@ -71,13 +73,21 @@ def _request(s):
 		print("adding playlist failed")
 		server.shutdown()
 
-def playlist(qin, qout, e, _):
-	global m3ufile, server
+# define
+def playlist(): pass
 
+def proc(qout, qin, evParent, evChild, evTerm):
+	global server
+	try:
+		evChild.wait()
+	except KeyboardInterrupt:
+		return evTerm.set()
+
+	_ = qin.get()
 	state = qin.get()
-	m3ufile = state.serve
 
-	req = Thread(target=_request, args=[state.server])
+	evChild.clear()
+	req = Thread(target=_request, args=[evChild, state.server])
 	req.daemon = True
 	req.start()
 
@@ -86,13 +96,4 @@ def playlist(qin, qout, e, _):
 	server.join()
 
 	qout.put("\x00\0served")
-	e.set()
-
-def proc(qout, qin, evParent, evChild, evTerm):
-	try:
-		evChild.wait()
-	except KeyboardInterrupt:
-		evTerm.set()
-		return
-	fn = qin.get()
-	fn(qin, qout, evParent, evChild)
+	evParent.set()
