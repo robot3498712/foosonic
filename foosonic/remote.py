@@ -59,7 +59,6 @@ class Server(Thread):
 
 def _request(s, q, e):
 	import requests
-	from time import sleep
 	from base64 import b64decode
 	e.wait()    # wait for startup
 	_ = q.get() # wait for playlist
