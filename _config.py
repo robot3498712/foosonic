@@ -22,7 +22,7 @@ subsonic -> subsonic server
 	password=base64-encoded
 	apiVersion=None will use latest as supported by libsonic; specify old version like: 1.10
 remote -> foosonic/remote built-in server, contacted by remote foobar/cmdline
-web -> foosonic/wsgi built-in server, localhosted web app
+web -> foosonic/web built-in server, localhosted web app
 foo_httpcontrol -> remote foobar
 	password=base64-encoded
 '''

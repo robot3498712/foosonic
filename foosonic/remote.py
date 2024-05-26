@@ -9,16 +9,15 @@ https://stackoverflow.com/a/45017691
 https://stackoverflow.com/questions/14888799/disable-console-messages-in-flask-server
 '''
 class Server(Thread):
-	def __init__(self, state):
+	def __init__(self, state, e):
 		Thread.__init__(self)
 		import logging, click
 		from flask import Flask, send_file, after_this_request
 		from flask_compress import Compress
 		from werkzeug.serving import make_server
 
-		self.state = state
-		self.after_this_request = after_this_request
-		self.send_file = send_file
+		self.state, self.e = state, e
+		self.after_this_request, self.send_file = after_this_request, send_file
 
 		app = Flask(__name__)
 		compress = Compress()
@@ -42,7 +41,7 @@ class Server(Thread):
 	def _serve(self):
 		@self.after_this_request
 		def shutdown(response):
-			Thread(target=server.shutdown).start()
+			Thread(target=self.server.shutdown).start()
 			return response
 
 		return self.send_file(
@@ -51,14 +50,19 @@ class Server(Thread):
 			mimetype='application/mpegurl; charset=utf-8'
 		)
 
-	def run(self): self.server.serve_forever()
+	def run(self):
+		self.e.set()
+		self.server.serve_forever()
+
 	def shutdown(self): self.server.shutdown()
 # end Server()
 
-def _request(e, s):
+def _request(s, q, e):
 	import requests
+	from time import sleep
 	from base64 import b64decode
-	e.wait()
+	e.wait()    # wait for startup
+	_ = q.get() # wait for playlist
 	try:
 		requests.get(
 			url = s['foo_httpcontrol']['url'],
@@ -86,12 +90,11 @@ def proc(qout, qin, evParent, evChild, evTerm):
 	_ = qin.get()
 	state = qin.get()
 
-	evChild.clear()
-	req = Thread(target=_request, args=[evChild, state.server])
+	req = Thread(target=_request, args=[state.server, qin, evChild])
 	req.daemon = True
 	req.start()
 
-	server = Server(state)
+	server = Server(state, evChild)
 	server.start()
 	server.join()
 

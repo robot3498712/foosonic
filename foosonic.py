@@ -5,7 +5,7 @@ foosonic client by robot
 	https://github.com/kazhala/InquirerPy | https://inquirerpy.readthedocs.io/en/latest/index.html
 '''
 
-class Process(object): pass
+class Proc(object): pass
 
 class State:
 	def __init__(self):
@@ -121,13 +121,16 @@ def tWndManual():
 ''' --------------- remotes ---------------  '''
 
 def tRemote(m3ufile=None):
-	(*_, e) = proc.remote
-	if e: e.set()
-	else:
+	if m3ufile:
 		state.serve = m3ufile
 		t = Thread(target=show, args=[remote.playlist])
 		t.daemon = True
-		t.start()
+		return t.start()
+	while True:
+		(*_, qout, _, _) = proc.remote
+		try: qout.put('')
+		except: sleep(0.05)
+		else: break
 
 
 ''' --------------- webapps ---------------  '''
@@ -687,8 +690,8 @@ def add(ids, silent=False):
 			tRemote()
 		else:
 			p = Popen([cfg.foo, '/add', m3ufile])
-	except:
-		if not silent: print("unknown error adding playlist")
+	except Exception as e:
+		if not silent: print(f"error adding playlist: {e}")
 	else:
 		state._remote = True
 
@@ -983,7 +986,6 @@ def show(fn):
 		# instructions not requiring a new prompt
 		if r.startswith("\x00"):
 			if 'served' in r: del state._remote
-			proc.remote = (None, None, None, None, None)
 			return qCloser(qin, qout)
 		elif r == "\x01":
 			opendir(getAlbumPathById(state.alId))
@@ -1192,7 +1194,7 @@ if __name__ == "__main__":
 	from foosonic import prompt, window, remote, web, connection
 	from _config import cfg
 
-	sd, args, state, lock, evTerm, proc = os.path.dirname(os.path.realpath(__file__)), None, None, Lock(), mpEvent(), Process()
+	sd, args, state, lock, evTerm, proc = os.path.dirname(os.path.realpath(__file__)), None, None, Lock(), mpEvent(), Proc()
 	proc.pool, proc.procs, proc.wndQs = deque(maxlen=2), deque(maxlen=20), deque()
 	proc.web = proc.remote = (None, None, None, None, None)
 
