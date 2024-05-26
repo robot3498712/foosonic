@@ -126,7 +126,7 @@ def tRemote(m3ufile=None):
 		t = Thread(target=show, args=[remote.playlist])
 		t.daemon = True
 		return t.start()
-	while True:
+	while not evTerm.is_set():
 		(*_, qout, _, _) = proc.remote
 		try: qout.put('')
 		except: sleep(0.05)
@@ -946,20 +946,20 @@ def show(fn):
 
 	# threaded modules spin up on demand
 	match fn:
-		case web.app:
-			p = pmake(web.proc)
+		case remote.playlist:
+			proc.remote = p = tmake(remote.run)
+			p[0].daemon = True
 			p[0].start()
-			proc.web = p
 			sharedState.server = cfg.server
 
-		case remote.playlist:
-			p = pmake(remote.proc)
+		case web.app:
+			proc.web = p = tmake(web.run)
+			p[0].daemon = True
 			p[0].start()
-			proc.remote = p
 			sharedState.server = cfg.server
 
 		case window.coverArt | window.manual:
-			p = pmake(window.proc)
+			p = pmake(window.run)
 			p[0].start()
 			proc.wndQs.append(p[2])
 
@@ -974,9 +974,12 @@ def show(fn):
 	qout.put(sharedState)
 	evChild.set()
 
-	while True:
-		evParent.wait()
-		r = qin.get()
+	while not evTerm.is_set():
+		try:
+			evParent.wait()
+			r = qin.get()
+		except Exception as e:
+			return evTerm.set()
 
 		# on state object (i.e. prompt returning)
 		if isinstance(r, State):
@@ -1006,8 +1009,8 @@ def show(fn):
 			import webbrowser
 			webbrowser.open(f"http://{cfg.server['web']['ip']}:{cfg.server['web']['port']}", new=2, autoraise=True)
 		elif r.startswith("\x20\0"):
-			(_, args['foo'], args['mode'], alIdsStr) = r.split("\0")
-			add(alIdsStr.split(","), silent=True)
+			(_, args['foo'], args['mode'], idsStr) = r.split("\0")
+			add(idsStr.split(","), silent=True)
 			# resolve a request promise; typically takes couple more seconds to complete the playlist transfer
 			# a more sophisticated approach will yield bool result
 			qout.put('')
@@ -1030,11 +1033,15 @@ def pmake(target, tty=None):
 		return (Process(target=target, args=(*qe, evTerm, tty)), *qe)
 	return (Process(target=target, args=(*qe, evTerm)), *qe)
 
+def tmake(target):
+	qe = (mpQueue(), mpQueue(), mpEvent(), mpEvent())
+	return (Thread(target=target, args=(*qe,)), *qe)
+
 def pman():
 	tty = True if os.name == 'posix' else False
 	while not evTerm.is_set():
 		if not len(proc.pool):
-			p = pmake(prompt.proc, tty)
+			p = pmake(prompt.run, tty)
 			proc.pool.append([*p])
 			proc.procs.append(p[0])
 			p[0].start()
@@ -1042,10 +1049,6 @@ def pman():
 	for p in proc.procs:
 		p.terminate()
 		p.join()
-	for (p, *_) in [proc.web, proc.remote]:
-		if p:
-			p.terminate()
-			p.join()
 
 def dispatch(man=True, exit=True):
 	if man:

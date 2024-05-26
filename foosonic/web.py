@@ -84,12 +84,12 @@ def _update(qin, evChild):
 # define
 def app(): pass
 
-def proc(qout, qin, evParent, evChild, evTerm):
+def run(qout, qin, evParent, evChild):
 	global state
 	try: 
 		evChild.wait()
 	except KeyboardInterrupt:
-		return evTerm.set()
+		return
 
 	_ = qin.get()
 	state = qin.get()

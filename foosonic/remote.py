@@ -60,8 +60,11 @@ class Server(Thread):
 def _request(s, q, e):
 	import requests
 	from base64 import b64decode
-	e.wait()    # wait for startup
-	_ = q.get() # wait for playlist
+	try:
+		e.wait()    # wait for startup
+		_ = q.get() # wait for playlist
+	except:
+		return
 	try:
 		requests.get(
 			url = s['foo_httpcontrol']['url'],
@@ -79,12 +82,12 @@ def _request(s, q, e):
 # define
 def playlist(): pass
 
-def proc(qout, qin, evParent, evChild, evTerm):
+def run(qout, qin, evParent, evChild):
 	global server
 	try:
 		evChild.wait()
 	except KeyboardInterrupt:
-		return evTerm.set()
+		return
 
 	_ = qin.get()
 	state = qin.get()

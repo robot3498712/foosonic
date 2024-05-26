@@ -82,7 +82,7 @@ def _destroy(qin, h):
 	_ = qin.get()
 	h.destroy()
 
-def proc(qout, qin, evParent, evChild, evTerm):
+def run(qout, qin, evParent, evChild, evTerm):
 	global tk, Image, ImageTk, BytesIO
 	import tkinter as tk
 	from PIL import Image, ImageTk
