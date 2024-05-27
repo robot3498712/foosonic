@@ -410,8 +410,8 @@ def tGetAlbumsByGenre(genreQuery, _size):
 def getAlbumsByGenres(_size):
 	state.selectedChoiceIndex, state.choices, state.seen, alDict, state._data = -1, [], set(), {}, {}
 	tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _size=_size)
-	with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
-		list(tqdm(exe.map(tGetAlbumsByGenreP, state.selectedChoice), total=len(state.selectedChoice), desc='Genre'))
+	with ThreadPoolExecutor(cfg.perf["searchThreads"]) as proc.tpe:
+		list(tqdm(proc.tpe.map(tGetAlbumsByGenreP, state.selectedChoice), total=len(state.selectedChoice), desc='Genre'))
 	for album in state._data['albumList']['album']:
 		if album['id'] in state.seen: continue
 		alDict[f"{album['artist']}/{album['title']}"] = album['id']
@@ -430,8 +430,8 @@ def getAlbumsByArtists(_size):
 	state.selectedChoiceIndex, state.choices, state.seen, alDict, state._data = -1, [], set(), {}, {}
 
 	tGetArtistP = partial(tGetArtist, _size=_size)
-	with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
-		list(tqdm(exe.map(tGetArtistP, state.selectedChoice), total=len(state.selectedChoice), desc='Artist'))
+	with ThreadPoolExecutor(cfg.perf["searchThreads"]) as proc.tpe:
+		list(tqdm(proc.tpe.map(tGetArtistP, state.selectedChoice), total=len(state.selectedChoice), desc='Artist'))
 
 	# songDict concept not implemented (yet)
 	for album in state._data['artist']['album']:
@@ -469,8 +469,8 @@ def getAlbumsByGenre(query, _size):
 				genreQueryList.append(choice.value)
 		if _len := len(genreQueryList):
 			tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _size=_size)
-			with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
-				list(tqdm(exe.map(tGetAlbumsByGenreP, genreQueryList), total=_len, desc='Genre'))
+			with ThreadPoolExecutor(cfg.perf["searchThreads"]) as proc.tpe:
+				list(tqdm(proc.tpe.map(tGetAlbumsByGenreP, genreQueryList), total=_len, desc='Genre'))
 
 			for album in state._data['albumList']['album']:
 				if album['id'] in state.seen: continue
@@ -497,8 +497,8 @@ def getSearch(query, _size, _all=False):
 	with tqdm(desc='Search') as pbar:
 		fnx.append(partial(tGetSearch, fn=state.connector.conn.search2, _key='searchResult2', _query=query, _size=_size, pbar=pbar))
 		fnx.append(partial(tGetSearch, fn=state.connector.conn.search3, _key='searchResult3', _query=query, _size=_size, pbar=pbar))	
-		with ThreadPoolExecutor(2) as exe:
-			for fn in fnx: exe.submit(fn)
+		with ThreadPoolExecutor(2) as proc.tpe:
+			for fn in fnx: proc.tpe.submit(fn)
 
 	if 'album' in state._data['searchResult2']:
 		for album in state._data['searchResult2']['album']:
@@ -542,8 +542,8 @@ def getSearch(query, _size, _all=False):
 
 	if _all and (_len := len(arIDs)):
 		tGetArtistP = partial(tGetArtist, _size=_size)
-		with ThreadPoolExecutor(cfg.perf["searchThreads"]) as exe:
-			list(tqdm(exe.map(tGetArtistP, arIDs), total=_len, desc='Artist'))
+		with ThreadPoolExecutor(cfg.perf["searchThreads"]) as proc.tpe:
+			list(tqdm(proc.tpe.map(tGetArtistP, arIDs), total=_len, desc='Artist'))
 
 		for album in state._data['artist']['album']:
 			if album['id'] in state.seen: continue
@@ -659,8 +659,8 @@ def add(ids, silent=False):
 		# end FOR
 		# preserving FIFO, flush to file on step
 		with tqdm(total=len(ids), desc='Add', disable=silent) as pbar:
-			with ThreadPoolExecutor(cfg.perf["addThreads"]) as exe:
-				for fn in fnx: tasks.append(exe.submit(fn))
+			with ThreadPoolExecutor(cfg.perf["addThreads"]) as proc.tpe:
+				for fn in fnx: tasks.append(proc.tpe.submit(fn))
 				for _ in as_completed(tasks):
 					pbar.update(1)
 					if not pbar.n % step:
@@ -697,7 +697,7 @@ def add(ids, silent=False):
 
 # threadpool dispatch
 def tAddAlbumById(id):
-	if evTerm.is_set(): raise KeyboardInterrupt
+	if evTerm.is_set(): return
 	paths, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -716,7 +716,7 @@ def tAddAlbumById(id):
 	return
 
 def tAddAlbumByIdStream(id):
-	if evTerm.is_set(): raise KeyboardInterrupt
+	if evTerm.is_set(): return
 	urls, r = [], state.connector.conn.getAlbum(id)
 	if 'album' in r:
 		if ('songCount' in r['album'] and r['album']['songCount'] > 0):
@@ -734,7 +734,7 @@ def tAddAlbumByIdStream(id):
 	return
 
 def tAddStation(id):
-	if evTerm.is_set(): raise KeyboardInterrupt
+	if evTerm.is_set(): return
 	urls, label = [], None
 	for k, v in cfg.radio.items():
 		if v == id:
@@ -968,6 +968,7 @@ def show(fn):
 				try: p = proc.pool.popleft()
 				except IndexError: sleep(0.05)
 				else: break
+				finally: proc.iter.put(None)
 
 	(_, qin, qout, evParent, evChild) = p
 	qout.put(fn)
@@ -978,8 +979,8 @@ def show(fn):
 		try:
 			evParent.wait()
 			r = qin.get()
-		except Exception as e:
-			return evTerm.set()
+		except Exception:
+			return
 
 		# on state object (i.e. prompt returning)
 		if isinstance(r, State):
@@ -1024,7 +1025,6 @@ def show(fn):
 
 	qCloser(qin, qout)
 	if state.sig == KeyboardInterrupt:
-		evTerm.set()
 		raise KeyboardInterrupt
 
 def pmake(target, tty=None):
@@ -1040,12 +1040,18 @@ def tmake(target):
 def pman():
 	tty = True if os.name == 'posix' else False
 	while not evTerm.is_set():
-		if not len(proc.pool):
-			p = pmake(prompt.run, tty)
-			proc.pool.append([*p])
-			proc.procs.append(p[0])
-			p[0].start()
-		sleep(0.1)
+		p = pmake(prompt.run, tty)
+		proc.pool.append([*p])
+		proc.procs.append(p[0])
+		p[0].start()
+		proc.iter.get()
+
+	proc.iter.close()
+	proc.iter.join_thread()
+
+	try: proc.tpe.shutdown(wait=True, cancel_futures=True)
+	except: pass
+
 	for p in proc.procs:
 		p.terminate()
 		p.join()
@@ -1054,15 +1060,20 @@ def dispatch(man=True, exit=True):
 	if man:
 		t = Thread(target=pman)
 		t.start()
-	while True:
-		try:
-			_call = state.call.pop()
-			if not _call: raise IndexError
-		except IndexError: break
-		_call()
-	if (args['foo'] and "remote" in args['foo']):
-		while hasattr(state, '_remote'): sleep(0.05)
-	evTerm.set()
+	try:
+		while True:
+			try:
+				_call = state.call.pop()
+				if not _call: raise IndexError
+			except IndexError: break
+			_call()
+		if (args['foo'] and "remote" in args['foo']):
+			while hasattr(state, '_remote'): sleep(0.05)
+	except KeyboardInterrupt: pass
+	if man:
+		evTerm.set()
+		proc.iter.put(None)
+		t.join()
 	if exit: sys.exit(0)
 
 
@@ -1197,12 +1208,9 @@ if __name__ == "__main__":
 	from foosonic import prompt, window, remote, web, connection
 	from _config import cfg
 
-	sd, args, state, lock, evTerm, proc = os.path.dirname(os.path.realpath(__file__)), None, None, Lock(), mpEvent(), Proc()
-	proc.pool, proc.procs, proc.wndQs = deque(maxlen=2), deque(maxlen=20), deque()
+	sd, args, state, lock, evTerm  = os.path.dirname(os.path.realpath(__file__)), None, None, Lock(), mpEvent()
+	proc, proc.iter, proc.pool, proc.procs, proc.wndQs = Proc(), mpQueue(), deque(maxlen=2), deque(maxlen=20), deque()
 	proc.web = proc.remote = (None, None, None, None, None)
 
-	try:
-		main()
-	except KeyboardInterrupt:
-		pass
+	main()
 	sys.exit(0)
