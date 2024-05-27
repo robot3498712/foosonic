@@ -1,6 +1,6 @@
 # foosonic
 
-## [0.2.5] (2024-05-25)
+## [0.2.6] (2024-05-27)
 
 
 ### Dependencies & preconditions
@@ -39,7 +39,7 @@ Edit _config.py to get started. alt-h to display manual.
 ### Technical notes
 
 * Focus on multiprocessing and speed / responsiveness. Memory footprint thus is rather high, but there won't be major problems with memory leaks.
-* Some exceptions may result in hanging processes. In such case, kill the process via task manager, and fix the issue.
+* Some exceptions may result in hanging processes (should be less of an issue as of version 0.2.6). In such case, kill the process via task manager, and fix the issue.
 * prompt_toolkit/InquirerPy isn't perfect. As for console host on windows, default cmd (https://math.berkeley.edu/~serganov/ilyaz.org/software/fonts/) / Windows Terminal (Consolas) work best, while conemu performed very poorly in my tests. You may try turning off fuzzy prompts and simplifying in general.
 * [Special keys](https://python-prompt-toolkit.readthedocs.io/en/master/pages/advanced_topics/key_bindings.html#list-of-special-keys)
 

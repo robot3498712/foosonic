@@ -929,8 +929,8 @@ def wndPopper():
 def qCloser(qin, qout):
 	qin.close()
 	qout.close()
-	qin.join_thread()
-	qout.join_thread()
+	qin.cancel_join_thread()
+	qout.cancel_join_thread()
 
 def show(fn):
 	sharedState = copy(state)
@@ -948,13 +948,11 @@ def show(fn):
 	match fn:
 		case remote.playlist:
 			proc.remote = p = tmake(remote.run)
-			p[0].daemon = True
 			p[0].start()
 			sharedState.server = cfg.server
 
 		case web.app:
 			proc.web = p = tmake(web.run)
-			p[0].daemon = True
 			p[0].start()
 			sharedState.server = cfg.server
 
@@ -980,7 +978,7 @@ def show(fn):
 			evParent.wait()
 			r = qin.get()
 		except Exception:
-			return
+			return qCloser(qin, qout)
 
 		# on state object (i.e. prompt returning)
 		if isinstance(r, State):
@@ -1030,12 +1028,12 @@ def show(fn):
 def pmake(target, tty=None):
 	qe = (mpQueue(), mpQueue(), mpEvent(), mpEvent())
 	if tty is not None:
-		return (Process(target=target, args=(*qe, evTerm, tty)), *qe)
-	return (Process(target=target, args=(*qe, evTerm)), *qe)
+		return (Process(target=target, daemon=True, args=(*qe, evTerm, tty)), *qe)
+	return (Process(target=target, daemon=True, args=(*qe, evTerm)), *qe)
 
 def tmake(target):
 	qe = (mpQueue(), mpQueue(), mpEvent(), mpEvent())
-	return (Thread(target=target, args=(*qe,)), *qe)
+	return (Thread(target=target, daemon=True, args=(*qe,)), *qe)
 
 def pman():
 	tty = True if os.name == 'posix' else False
@@ -1045,9 +1043,7 @@ def pman():
 		proc.procs.append(p[0])
 		p[0].start()
 		proc.iter.get()
-
 	proc.iter.close()
-	proc.iter.join_thread()
 
 	try: proc.tpe.shutdown(wait=True, cancel_futures=True)
 	except: pass
@@ -1082,7 +1078,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.2.5')
+	parser.add_argument('-v', '--version', action='version', version='0.2.6')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <id1>[,<id2>]', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)
@@ -1193,7 +1189,7 @@ def main():
 
 if __name__ == "__main__":
 	import sys, os, pickle, itertools
-	from multiprocessing import (Event as mpEvent, Queue as mpQueue, Process)
+	from multiprocessing import (Event as mpEvent, Queue as mpQueue, SimpleQueue, Process)
 	from threading import Thread, Lock
 	from concurrent.futures import ThreadPoolExecutor, as_completed
 	from functools import partial
@@ -1209,7 +1205,7 @@ if __name__ == "__main__":
 	from _config import cfg
 
 	sd, args, state, lock, evTerm  = os.path.dirname(os.path.realpath(__file__)), None, None, Lock(), mpEvent()
-	proc, proc.iter, proc.pool, proc.procs, proc.wndQs = Proc(), mpQueue(), deque(maxlen=2), deque(maxlen=20), deque()
+	proc, proc.iter, proc.pool, proc.procs, proc.wndQs = Proc(), SimpleQueue(), deque(maxlen=2), deque(maxlen=20), deque()
 	proc.web = proc.remote = (None, None, None, None, None)
 
 	main()
