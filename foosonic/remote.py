@@ -100,5 +100,5 @@ def run(qout, qin, evParent, evChild):
 	server.start()
 	server.join()
 
-	qout.put("\x00\0served")
+	qout.put("\x00")
 	evParent.set()

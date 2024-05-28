@@ -984,7 +984,7 @@ def show(fn):
 			break
 
 		# instructions not requiring a new prompt
-		if r.startswith("\x00"):
+		if r == "\x00":
 			if hasattr(state, '_remote'): del state._remote
 			return qCloser(qin, qout)
 		elif r == "\x01":
