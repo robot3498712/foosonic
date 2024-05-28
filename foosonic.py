@@ -129,7 +129,8 @@ def tRemote(m3ufile=None):
 	while not evTerm.is_set():
 		(*_, qout, _, _) = proc.remote
 		try: qout.put('')
-		except: sleep(0.05)
+		except ValueError: sleep(0.05)
+		except Exception as e: raise e
 		else: break
 
 
@@ -962,11 +963,8 @@ def show(fn):
 			proc.wndQs.append(p[2])
 
 		case _:
-			while True: # wait for man()
-				try: p = proc.pool.popleft()
-				except IndexError: sleep(0.05)
-				else: break
-				finally: proc.iter.put(None)
+			p = proc.pool.popleft()
+			proc.iter.put(None)
 
 	(_, qin, qout, evParent, evChild) = p
 	qout.put(fn)
@@ -987,7 +985,7 @@ def show(fn):
 
 		# instructions not requiring a new prompt
 		if r.startswith("\x00"):
-			if 'served' in r: del state._remote
+			if hasattr(state, '_remote'): del state._remote
 			return qCloser(qin, qout)
 		elif r == "\x01":
 			opendir(getAlbumPathById(state.alId))
