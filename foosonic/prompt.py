@@ -39,9 +39,9 @@ def confRmSession(qin, qout, e, _):
 		if inquirer.confirm(message="Confirm delete session", default=True,
 			confirm_letter="y", reject_letter="n", style=style
 		).execute():
-			state.selectedChoice = True
+			state.selChoice = True
 		else:
-			state.selectedChoice = False
+			state.selChoice = False
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	qout.put(state)
@@ -59,7 +59,7 @@ def modeSession(qin, qout, e, _):
 		event.app.exit(result=None)
 
 	try:
-		state.selectedChoice = prompt.execute()
+		state.selChoice = prompt.execute()
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	else:
@@ -70,7 +70,7 @@ def modeSession(qin, qout, e, _):
 def nameSession(qin, qout, e, _):
 	state = qin.get()
 	prompt = inquirer.text(message="Enter descriptive name for this session:",
-		default=state.fuzzyText['session'] if state.fuzzyText['session'] else ''
+		default=state.fuzzy['session'] if state.fuzzy['session'] else ''
 	)
 
 	@prompt.register_kb("alt-left")
@@ -80,7 +80,7 @@ def nameSession(qin, qout, e, _):
 		event.app.exit(result=None)
 
 	try:
-		state.selectedChoice = prompt.execute()
+		state.selChoice = prompt.execute()
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	else:
@@ -126,7 +126,7 @@ def listSessions(qin, qout, e, _):
 		e.set()
 
 	try:
-		state.selectedChoice = prompt.execute()
+		state.selChoice = prompt.execute()
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	else:
@@ -146,7 +146,7 @@ def listGenres(qin, qout, e, _):
 	prompt = inquirer.fuzzy(message=f"Select {state.ltype}", long_instruction="toggle down: tab / up: s-tab / all: c-r / exact: c-t",
 		choices=state.choices, match_exact=True, multiselect=True,
 		keybindings={"answer": [], "toggle": [], "toggle-all": [{"key": "c-r"}], "toggle-all-true": [], "toggle-exact": [{"key": "c-t"}]},
-		default=state.fuzzyText['genre'], style=style, height="100%", transformer=lambda result: f"({len(result)})",
+		default=state.fuzzy['genre'], style=style, height="100%", transformer=lambda result: f"({len(result)})",
 	)
 
 	@prompt.register_kb("pagedown")
@@ -167,7 +167,7 @@ def listGenres(qin, qout, e, _):
 
 	@prompt.register_kb("c-m") # override {enter} to store input text
 	def _handle_enter(event):
-		state.fuzzyText[state.ltype] = prompt._get_current_text().strip()
+		state.fuzzy[state.ltype] = prompt._get_current_text().strip()
 		prompt._handle_enter(event)
 
 	@prompt.register_kb("alt-left")
@@ -206,7 +206,7 @@ def listGenres(qin, qout, e, _):
 		e.set()
 
 	try:
-		state.selectedChoice = prompt.execute()
+		state.selChoice = prompt.execute()
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	else:
@@ -222,12 +222,12 @@ def listAlbums(qin, qout, e, _):
 	prompt = inquirer.fuzzy(message=f"Select {'session/album' if state.type == 'session' else state.type}", choices=state.choices,
 		long_instruction="+foo: c-space / open: a-o / cover: a-i / genres: a-g / artists: a-a / radio: a-r / web: a-w / sess: a-s / store: c-s",
 		keybindings={"answer": [], "toggle": [], "toggle-all": [{"key": "c-r"}], "toggle-all-true": [], "toggle-exact": [{"key": "c-t"}]},
-		match_exact=True, multiselect=True, default=state.fuzzyText[state.type], style=style, height="100%",
+		match_exact=True, multiselect=True, default=state.fuzzy[state.type], style=style, height="100%",
 		transformer=lambda result: f"({len(result)})"
 	)
 
-	if state.selectedChoiceIndex > -1:
-		prompt.content_control.selected_choice_index = state.selectedChoiceIndex
+	if state.selChoiceIdx > -1:
+		prompt.content_control.selected_choice_index = state.selChoiceIdx
 
 	@prompt.register_kb("pagedown")
 	@prompt.register_kb("right")
@@ -251,8 +251,8 @@ def listAlbums(qin, qout, e, _):
 
 	@prompt.register_kb("c-m") # override {enter} to store selected index
 	def _handle_enter(event):
-		state.selectedChoiceIndex = prompt.content_control.selected_choice_index
-		state.fuzzyText[state.type] = prompt._get_current_text().strip()
+		state.selChoiceIdx = prompt.content_control.selected_choice_index
+		state.fuzzy[state.type] = prompt._get_current_text().strip()
 		prompt._handle_enter(event)
 
 	@prompt.register_kb("alt-g")
@@ -283,21 +283,21 @@ def listAlbums(qin, qout, e, _):
 	def _handle_add(event):
 		global sig
 		sig = "\x06"
-		state.selectedChoiceIndex = prompt.content_control.selected_choice_index
+		state.selChoiceIdx = prompt.content_control.selected_choice_index
 		prompt._handle_enter(event)
 
 	@prompt.register_kb("alt-left")
 	def _handle_nav_back(event):
 		global sig
 		sig = "\x08"
-		state.selectedChoiceIndex = prompt.content_control.selected_choice_index
+		state.selChoiceIdx = prompt.content_control.selected_choice_index
 		event.app.exit(result=None)
 
 	@prompt.register_kb("c-s")
 	def _handle_sess(event):
 		global sig
 		sig = "\x14"
-		state.selectedChoiceIndex = prompt.content_control.selected_choice_index
+		state.selChoiceIdx = prompt.content_control.selected_choice_index
 		prompt._handle_enter(event)
 
 	@prompt.register_kb("alt-h")
@@ -329,7 +329,7 @@ def listAlbums(qin, qout, e, _):
 			e.set()
 
 	try:
-		state.selectedChoice = prompt.execute()
+		state.selChoice = prompt.execute()
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	else:
@@ -369,7 +369,7 @@ def getAlbumDetailsById(qin, qout, e, _):
 		e.set()
 
 	try:
-		state.selectedChoice = prompt.execute()
+		state.selChoice = prompt.execute()
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	else:
@@ -397,7 +397,7 @@ def action(qin, qout, e, _):
 		event.app.exit(result=None)
 
 	try:
-		state.selectedChoice = prompt.execute()
+		state.selChoice = prompt.execute()
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	else:
@@ -417,7 +417,7 @@ def mode(qin, qout, e, _):
 		event.app.exit(result=None)
 
 	try:
-		state.selectedChoice = prompt.execute()
+		state.selChoice = prompt.execute()
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	else:
@@ -431,9 +431,9 @@ def backToList(qin, qout, e, _):
 		if inquirer.confirm(message="Back to list", default=True,
 			confirm_letter="y", reject_letter="n", style=style
 		).execute():
-			state.selectedChoice = True
+			state.selChoice = True
 		else:
-			state.selectedChoice = False
+			state.selChoice = False
 	except KeyboardInterrupt:
 		state.sig = KeyboardInterrupt
 	qout.put(state)

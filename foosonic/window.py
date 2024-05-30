@@ -1,7 +1,7 @@
 from threading import Thread
 from foosonic import connection
 
-tk, Image, ImageTk, BytesIO = None, None, None, None
+tk, Image, ImageTk, BytesIO = (None,) * 4
 
 def manual(qin, qout, e, _):
 	state = qin.get()
@@ -73,6 +73,7 @@ def coverArt(qin, qout, e, _):
 		t.daemon = True
 		t.start()
 
+		wnd.bind("<KeyRelease>", lambda _: (lambda: qin.put(None))())
 		wnd.mainloop()
 
 	qout.put("\x00")
