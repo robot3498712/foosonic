@@ -1169,7 +1169,7 @@ def main():
 		dispatch()
 
 	if args['scan'] or args['status']:
-		_state.call.append(lambda: scan(start=args['scan'], check=(args['scan'] is not True)))
+		_state.call.append(lambda: scan(start=args['scan'], progr=(args['scan'] is not True)))
 		dispatch(man=False)
 
 	if args['add']:
