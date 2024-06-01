@@ -24,7 +24,7 @@ class State:
 		self.type = 'album'
 		self.numRes = 0
 		self.selChoiceIdx = -1
-		self.selChoice = None
+		self.selChoice = False
 		self.fuzzy = {'genre': None, 'artist': None, 'session': None, 'radio': None, 'album': None}
 		self.alId = None
 		self.sess = None
@@ -93,6 +93,11 @@ class Choice(dict):
 			self['name'] = str(value)
 
 	def __getattr__(self, attr): return self[attr]
+
+class Separator(Choice):
+	''' workaround: fuzzy prompts raise on built-in sep usage. compact ex. f"{'~'*50}" '''
+	def __init__(self, name=f"{'·'*49}👻"):
+		super().__init__(value=None, name=name, enabled=False)
 
 
 ''' --------------- helpers ---------------  '''
@@ -570,7 +575,7 @@ def getSearch(query, _size, _all=False):
 	for key in sorted(alDict.keys()):
 		_state.choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		_state.choices.append(Choice(False, name=f"{'~'*50}"))
+		_state.choices.append(Separator())
 	for key in sorted(songDict.keys()):
 		_state.choices.append(Choice(songDict[key], name=key))
 
@@ -649,7 +654,7 @@ def getAlbumDetailsById(id):
 
 def add(ids, silent=False):
 	_state._data, fnx, tasks, step, header, m3ufile = {}, [], [], 50, False, os.path.join(sd, f"./cache/{int(time())}.m3u8")
-	ids = deque([str(x) for x in ids if x is not False])
+	ids = deque([str(x) for x in ids if x is not None])
 	if (args['foo'] and "remote" in args['foo']): tRemote(m3ufile)
 	with open(m3ufile, mode="a", encoding="utf8") as fh:	
 		for id in ids:
@@ -833,7 +838,7 @@ def trimSession():
 	for key in sorted(alDict.keys()):
 		_state.choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		_state.choices.append(Choice(False, name=f"{'~'*50}"))
+		_state.choices.append(Separator())
 	for key in sorted(songDict.keys()):
 		_state.choices.append(Choice(songDict[key], name=key))
 
@@ -883,7 +888,7 @@ def getSessionChoices(alDict={}, songDict={}, selected=False, alIds=[]):
 	for key in sorted(alDict.keys()):
 		choices.append(Choice(alDict[key], name=key))
 	if len(songDict):
-		choices.append(Choice(False, name=f"{'~'*50}"))
+		choices.append(Separator())
 	for key in sorted(songDict.keys()):
 		choices.append(Choice(songDict[key], name=key))
 	return choices

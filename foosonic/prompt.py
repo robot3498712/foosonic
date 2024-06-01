@@ -225,9 +225,7 @@ def listAlbums(qin, qout, e, _):
 		match_exact=True, multiselect=True, default=state.fuzzy[state.type], style=style, height="100%",
 		transformer=lambda result: f"({len(result)})"
 	)
-
-	if state.selChoiceIdx > -1:
-		prompt.content_control.selected_choice_index = state.selChoiceIdx
+	prompt.content_control.selected_choice_index = state.selChoiceIdx if state.selChoiceIdx > -1 else 0
 
 	@prompt.register_kb("pagedown")
 	@prompt.register_kb("right")
