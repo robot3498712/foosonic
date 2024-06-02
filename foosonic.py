@@ -24,7 +24,7 @@ class State:
 		self.type = 'album'
 		self.numRes = 0
 		self.selChoiceIdx = -1
-		self.selChoice = False
+		self.selChoice = None
 		self.fuzzy = {'genre': None, 'artist': None, 'session': None, 'radio': None, 'album': None}
 		self.alId = None
 		self.sess = None
@@ -96,8 +96,8 @@ class Choice(dict):
 
 class Separator(Choice):
 	''' workaround: fuzzy prompts raise on built-in sep usage. compact ex. f"{'~'*50}" '''
-	def __init__(self, name=f"{'·'*49}👻"):
-		super().__init__(value=None, name=name, enabled=False)
+	def __init__(self, name=f"{'·'*49}\U0001F47B"):
+		super().__init__(value=None, name=name)
 
 
 ''' --------------- helpers ---------------  '''
@@ -761,21 +761,21 @@ def tAddStation(id):
 ''' --------------- misc. tasks ---------------  '''
 
 def scan(start=True, progr=False):
-	from pprint import pprint
 	r = _state.connector.conn.getScanStatus()
+	sc = r['scanStatus']['count']
 	if start:
 		if not r['scanStatus']['scanning']: r = _state.connector.conn.startScan()
 		if progr:
-			formatStatus = lambda r: f"scanStatus: {r['scanStatus']['scanning']} | count: {r['scanStatus']['count']}"
-			with tqdm(desc=formatStatus(r), bar_format='{desc} [{elapsed}]', position=0) as pbar:
+			fc = lambda r: f"{r['scanStatus']['count']} <- {r['scanStatus']['count']-sc}" if r['scanStatus']['count'] > sc else sc
+			fs = lambda r: f"scanning: {r['scanStatus']['scanning']} | count: {fc(r)}"
+			with tqdm(desc=fs(r), bar_format='{desc} [{elapsed}]', position=0) as pbar:
 				while True:
 					sleep(1)
 					pbar.update(1)
 					if not pbar.n % 30:
 						r = _state.connector.conn.getScanStatus()
-						if not r['scanStatus']['scanning']:
-							pbar.set_description(formatStatus(r))
-							return
+						if not r['scanStatus']['scanning']: return pbar.set_description_str(fs(r))
+	from pprint import pprint
 	pprint(r, indent=1, sort_dicts=False)
 
 # tbd: streamline & remove duplicated session code (as well see listSessions())
