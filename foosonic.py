@@ -96,7 +96,7 @@ class Choice(dict):
 
 class Separator(Choice):
 	''' workaround: fuzzy prompts raise on built-in sep usage. compact ex. f"{'~'*50}" '''
-	def __init__(self, name=f"{'·'*49}\U0001F47B"):
+	def __init__(self, name=f"{'\u00B7'*49}\U0001F47B"):
 		super().__init__(value=None, name=name)
 
 
@@ -146,14 +146,11 @@ def tRemote(m3ufile=None):
 ''' --------------- webapps ---------------  '''
 
 def tWeb():
-	(*_, qout, _, evChild) = _state.web
-	if qout:
-		qout.put(_state.choices)
-		evChild.set()
-	else:
-		t = Thread(target=show, args=[web.app])
-		t.daemon = True
-		t.start()
+	(p, *_) = _state.web
+	if p: return
+	t = Thread(target=show, args=[web.app])
+	t.daemon = True
+	t.start()
 
 
 ''' --------------- dialogs ---------------  '''
@@ -956,12 +953,14 @@ def qCloser(qin, qout):
 
 def show(fn):
 	shareState = copy(state)
-	if fn in {prompt.listAlbums, prompt.listArtists, prompt.listGenres, web.app}:
+	if fn in {prompt.listAlbums, prompt.listArtists, prompt.listGenres}:
 		shareState.choices = _state.choices
 	elif fn in {prompt.listSessions}:
 		shareState.sessions = _state.sessions
 	elif fn in {prompt.getAlbumDetailsById}:
 		shareState.alProp = _state.alProp
+	elif fn in {web.app, remote.playlist}:
+		shareState.server = cfg.server
 	else:
 		shareState.mode = args['mode']
 		shareState.action = args['action'] if 'action' in args else None
@@ -972,12 +971,10 @@ def show(fn):
 		case remote.playlist:
 			_state.remote = p = tmake(remote.run)
 			p[0].start()
-			shareState.server = cfg.server
 
 		case web.app:
 			_state.web = p = tmake(web.run)
 			p[0].start()
-			shareState.server = cfg.server
 
 		case window.coverArt | window.manual:
 			p = pmake(window.run)
@@ -1037,6 +1034,8 @@ def show(fn):
 			# resolve a request promise; typically takes couple more seconds to complete the playlist transfer
 			# a more sophisticated approach will yield bool result
 			qout.put(None)
+		elif r == "\x30":
+			qout.put(_state.choices)
 		elif r == "\x42":
 			tWndManual()
 

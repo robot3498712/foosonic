@@ -65,21 +65,16 @@ class Server():
 		return 'OK'
 
 	def _index(self):
+		self.qout.put("\x30")
+		self.evParent.set()
 		d = {}
-		for choice in state.choices:
+		for choice in self.qin.get():
 			try:
 				if not choice.value: raise ValueError
 				d[choice.value] = choice.name
-			except:
-				pass
+			except: pass
 		return self.render_template('index.html', data=self.json.dumps(d))
 # end Server()
-
-def _update(qin, evChild):
-	while True:
-		evChild.wait()
-		state.choices = qin.get()
-		evChild.clear()
 
 # define
 def app(): pass
@@ -94,11 +89,6 @@ def run(qout, qin, evParent, evChild):
 	_ = qin.get()
 	state = qin.get()
 	state.connector = connection.LibSoniConn()
-
-	evChild.clear()
-	t = Thread(target=_update, args=[qin, evChild])
-	t.daemon = True
-	t.start()
 
 	serve_forever = Server(qout, qin, evParent)
 
