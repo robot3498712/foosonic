@@ -8,10 +8,10 @@ foosonic client by robot
 class _State:
 	def __init__(self):
 		self.call = deque([None])
-		self.iter = SimpleQueue()
 		self.pool = deque(maxlen=2)
 		self.procs = deque(maxlen=20)
 		self.wndQs = deque()
+		self.iter = tEvent()
 		self.web = self.remote = (None,) * 5
 		self.seen = set()
 		self.choices = []
@@ -983,7 +983,7 @@ def show(fn):
 
 		case _:
 			p = _state.pool.popleft()
-			_state.iter.put(None)
+			_state.iter.set()
 
 	(_, qin, qout, evParent, evChild) = p
 	qout.put(fn)
@@ -1063,8 +1063,8 @@ def pman():
 		_state.pool.append([*p])
 		_state.procs.append(p[0])
 		p[0].start()
-		_state.iter.get()
-	_state.iter.close()
+		_state.iter.wait()
+		_state.iter.clear()
 
 	try: _state.tpe.shutdown(wait=True, cancel_futures=True)
 	except: pass
@@ -1089,7 +1089,7 @@ def dispatch(man=True, exit=True):
 	except KeyboardInterrupt: pass
 	if man:
 		evTerm.set()
-		_state.iter.put(None)
+		_state.iter.set()
 		t.join()
 	if exit: sys.exit(0)
 
@@ -1211,8 +1211,8 @@ def main():
 
 if __name__ == "__main__":
 	import sys, os, pickle, itertools
-	from multiprocessing import (Event as mpEvent, Queue as mpQueue, SimpleQueue, Process)
-	from threading import Thread, Lock
+	from multiprocessing import (Event as mpEvent, Queue as mpQueue, Process)
+	from threading import (Event as tEvent, Thread, Lock)
 	from concurrent.futures import ThreadPoolExecutor, as_completed
 	from functools import partial
 	from glob import glob
