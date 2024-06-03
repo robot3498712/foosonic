@@ -1,21 +1,16 @@
-from threading import Thread
 from foosonic import connection
 
-state = None
-
 class Server():
-	def __init__(self, qout, qin, evParent):
+	def __init__(self, state, qout, qin, evParent):
 		import json, logging, click
 		from io import BytesIO 
 		from flask import Flask, send_file, request, render_template
 		from flask_compress import Compress
 
+		self.state, self.connector = state, connection.LibSoniConn()
 		self.qout, self.qin, self.evParent = qout, qin, evParent
-		self.BytesIO = BytesIO
-		self.json = json
-		self.send_file = send_file
-		self.request = request
-		self.render_template = render_template
+		self.BytesIO, self.json = BytesIO, json
+		self.send_file, self.request, self.render_template = send_file, request, render_template
 
 		app = Flask(__name__)
 		Compress(app)
@@ -31,7 +26,7 @@ class Server():
 		click.echo = self._echo
 		click.secho = self._secho
 
-		app.run(debug=False, port=state.server['web']['port'], host=state.server['web']['listen'])
+		app.run(debug=False, port=self.state.server['web']['port'], host=self.state.server['web']['listen'])
 
 	def _secho(text, file=None, nl=None, err=None, color=None, **styles): pass
 	def _echo(text, file=None, nl=None, err=None, color=None, **styles): pass
@@ -39,7 +34,7 @@ class Server():
 	def _coverart(self, id, size=None):
 		data = None
 		try:
-			r = state.connector.conn.getCoverArt(id, size=size)
+			r = self.connector.conn.getCoverArt(id, size=size)
 			data = r.read()
 		except: pass
 		if data:
@@ -80,17 +75,13 @@ class Server():
 def app(): pass
 
 def run(qout, qin, evParent, evChild):
-	global state
 	try: 
 		evChild.wait()
 	except KeyboardInterrupt:
 		return
 
 	_ = qin.get()
-	state = qin.get()
-	state.connector = connection.LibSoniConn()
-
-	serve_forever = Server(qout, qin, evParent)
+	serve_forever = Server(qin.get(), qout, qin, evParent)
 
 	qout.put("\x00")
 	evParent.set()
