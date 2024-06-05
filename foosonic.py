@@ -417,6 +417,7 @@ def tGetAlbumsByGenre(genreQuery, _size):
 def getAlbumsByGenres(_size):
 	state.selChoiceIdx, _state.choices, _state.seen, alDict, _state._data = -1, [], set(), {}, {}
 	tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _size=_size)
+	shuffle(state.selChoice)
 	with ThreadPoolExecutor(cfg.perf["searchThreads"]) as _state.tpe:
 		list(tqdm(_state.tpe.map(tGetAlbumsByGenreP, state.selChoice), total=len(state.selChoice), desc='Genre'))
 	for album in _state._data['albumList']['album']:
@@ -476,9 +477,9 @@ def getAlbumsByGenre(query, _size):
 				genreQueryList.append(choice.value)
 		if _len := len(genreQueryList):
 			tGetAlbumsByGenreP = partial(tGetAlbumsByGenre, _size=_size)
+			shuffle(genreQueryList)
 			with ThreadPoolExecutor(cfg.perf["searchThreads"]) as _state.tpe:
 				list(tqdm(_state.tpe.map(tGetAlbumsByGenreP, genreQueryList), total=_len, desc='Genre'))
-
 			for album in _state._data['albumList']['album']:
 				if album['id'] in _state.seen: continue
 				alDict[f"{album['artist']}/{album['title']}"] = album['id']
@@ -500,12 +501,11 @@ def tGetArtist(id, _size):
 	Page('artist', _size).fetch(_state.connector.conn.getArtist, id)
 
 def getSearch(query, _size, _all=False):
-	fnx, _state._data, alDict, songDict, arIDs = [], {}, {}, {}, set()
+	_state._data, alDict, songDict, arIDs = {}, {}, {}, set()
 	with tqdm(desc='Search') as pbar:
-		fnx.append(partial(tGetSearch, fn=_state.connector.conn.search2, _key='searchResult2', _query=query, _size=_size, pbar=pbar))
-		fnx.append(partial(tGetSearch, fn=_state.connector.conn.search3, _key='searchResult3', _query=query, _size=_size, pbar=pbar))	
 		with ThreadPoolExecutor(2) as _state.tpe:
-			for fn in fnx: _state.tpe.submit(fn)
+			_state.tpe.submit(tGetSearch, _state.connector.conn.search2, 'searchResult2', query, _size, pbar)
+			_state.tpe.submit(tGetSearch, _state.connector.conn.search3, 'searchResult3', query, _size, pbar)
 
 	if 'album' in _state._data['searchResult2']:
 		for album in _state._data['searchResult2']['album']:
@@ -1221,6 +1221,7 @@ if __name__ == "__main__":
 	from copy import copy
 	from collections import deque
 	from time import time, strftime, localtime, sleep
+	from random import shuffle
 	from math import ceil
 	from tqdm import tqdm
 	from foosonic import prompt, window, remote, web, connection
