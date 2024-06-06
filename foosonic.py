@@ -238,10 +238,10 @@ def listSessions():
 			fp = state.selChoice
 			_state.call.append(lambda: listSessions())
 			with open(fp, mode="rb") as f: sess = pickle.load(f)
-			self.fuzzy['session'] = sess['name']
+			state.fuzzy['session'] = sess['name']
 			show(prompt.nameSession)
-			if state.selChoice != "\x08":
-				_state.sessions = []
+			if state.sig != "\x08":
+				_state.sessions, state.fuzzy['session'] = [], None
 				with open(fp, mode="wb") as f:
 					pickle.dump({
 						'name': state.selChoice,
@@ -1086,10 +1086,12 @@ def dispatch(man=True, exit=True):
 		if (args['foo'] and "remote" in args['foo']):
 			while hasattr(state, '_remote'): sleep(0.05)
 	except KeyboardInterrupt: pass
-	if man:
-		evTerm.set()
-		_state.iter.set()
-		t.join()
+	except Exception as e: raise e
+	finally:
+		if man:
+			evTerm.set()
+			_state.iter.set()
+			t.join()
 	if exit: sys.exit(0)
 
 
