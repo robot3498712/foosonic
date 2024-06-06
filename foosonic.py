@@ -20,7 +20,7 @@ class _State:
 
 class State:
 	def __init__(self):
-		self.ltype = None
+		self.ltype = 'album'
 		self.type = 'album'
 		self.numRes = 0
 		self.selChoiceIdx = -1
@@ -217,6 +217,7 @@ def listSessions():
 		show(prompt.listSessions)
 		if state.sig == "\x08":
 			if not len(_state.choices): return
+			state.type = state.ltype
 			clear()
 			return _state.call.append(lambda: listAlbums())
 
@@ -257,6 +258,7 @@ def listSessions():
 			clear()
 
 def listStations():
+	state.type = state.ltype = 'radio'
 	show(prompt.listAlbums)
 
 	if state.sig == "\x06":
@@ -777,10 +779,7 @@ def scan(start=True, progr=False):
 
 # tbd: streamline & remove duplicated session code (as well see listSessions())
 def getSessions():
-	state.type = 'session'
-	_state.sessions = []
-
-	alIds = state.selChoice
+	state.type, _state.sessions, alIds = state.ltype, [], state.selChoice
 
 	_state.call.append(lambda: listAlbums())
 	show(prompt.modeSession)

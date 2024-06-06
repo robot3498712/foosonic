@@ -191,12 +191,14 @@ def listGenres(qin, qout, e, _):
 	@prompt.register_kb("alt-g")
 	def _handle_nav_genre(event):
 		global sig
+		if state.ltype == "genre": return
 		sig = "\x1D"
 		event.app.exit(result=None)
 
 	@prompt.register_kb("alt-a")
 	def _handle_nav_artists(event):
 		global sig
+		if state.ltype == "artist": return
 		sig = "\x2D"
 		event.app.exit(result=None)
 
@@ -262,6 +264,7 @@ def listAlbums(qin, qout, e, _):
 	@prompt.register_kb("alt-r")
 	def _handle_nav_radio(event):
 		global sig
+		if state.ltype == "radio": return
 		sig = "\x1E"
 		event.app.exit(result=None)
 
