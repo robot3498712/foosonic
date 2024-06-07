@@ -174,10 +174,13 @@ function onClickAlbum(ev) {
 }
 
 document.addEventListener("DOMContentLoaded", function(event) {
-	if (localStorage.theme == "dark") {
-		document.body.classList.add("dark");
+	const scheme = localStorage.getItem("scheme");
+	if (scheme) {
+		if (scheme == "dark") document.body.classList.add("dark");
+		else document.body.classList.remove("dark");
 	} else {
-		document.body.classList.remove("dark");
+		if (window.matchMedia("(prefers-color-scheme: dark)").matches) document.body.classList.add("dark");
+		else document.body.classList.remove("dark");
 	}
 
 	const data = JSON.parse((document.getElementById("data")).value);
@@ -214,7 +217,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 	$('#dark-mode').click(function() {
 		let result = document.body.classList.toggle("dark");
-		localStorage.theme = result ? "dark" : "light";
+		localStorage.scheme = result ? "dark" : "light";
 	});
 
 	$('#foo-open').click(function() {
@@ -248,9 +251,9 @@ document.addEventListener("DOMContentLoaded", function(event) {
 	});
 
 	// point of this is establishing the scaffold in firefox
-	let preloadLazyImage = new Image();
-	preloadLazyImage.src = "/static/lazyload.png";
-	preloadLazyImage.onload = function() {
+	let preloadImage = new Image();
+	preloadImage.src = "/static/lazyload.png";
+	preloadImage.onload = function() {
 		i = -1;
 		for (let page=0; page<=j; page++) {
 			let opt = document.createElement("option");
@@ -276,7 +279,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 				let img = document.createElement("img");
 				img.setAttribute("class", "lazy");
-				img.setAttribute("src", preloadLazyImage.src);
+				img.setAttribute("src", preloadImage.src);
 				img.setAttribute("data-src", `/coverart/250/${d}`);
 				col.appendChild(img);
 

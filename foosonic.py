@@ -979,6 +979,7 @@ def show(fn):
 			p = pmake(window.run)
 			p[0].start()
 			_state.wndQs.append(p[2])
+			shareState.sd = sd
 
 		case _:
 			p = _state.pool.popleft()
@@ -1100,7 +1101,7 @@ def main():
 	clean()
 
 	parser = ArgumentParser(description='foosonic client')
-	parser.add_argument('-v', '--version', action='version', version='0.2.6')
+	parser.add_argument('-v', '--version', action='version', version='0.2.7')
 	parser.add_argument('-a', '--add', help='add to foobar, such as <id1>[,<id2>]', required=False)
 	parser.add_argument('-f', '--foo', help='set foo: local | remote', required=False)
 	parser.add_argument('-l', '--size', help='specify list size, such as 50', required=False)

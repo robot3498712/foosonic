@@ -1,3 +1,4 @@
+import os
 from threading import Thread
 from foosonic import connection
 
@@ -41,6 +42,7 @@ alt-r\t\tradio
 	t.daemon = True
 	t.start()
 
+	_setIcon(wnd, state.sd)
 	wnd.mainloop()
 
 	qout.put("\x00")
@@ -57,6 +59,9 @@ def coverArt(qin, qout, e, _):
 		return e.set()
 
 	data = r.read()
+	if not data:
+		with open(os.path.join(state.sd, './foosonic/static/lazyload.png'), "rb") as fh:
+			data = fh.read()
 	if data:
 		wnd = tk.Tk()
 		wnd.title(state.alId)
@@ -68,6 +73,7 @@ def coverArt(qin, qout, e, _):
 		img = ImageTk.PhotoImage(im)
 
 		_ = tk.Label(wnd, image=img).pack()
+		_setIcon(wnd, state.sd)
 
 		t = Thread(target=_destroy, args=[qin, wnd])
 		t.daemon = True
@@ -78,6 +84,10 @@ def coverArt(qin, qout, e, _):
 
 	qout.put("\x00")
 	e.set()
+
+def _setIcon(hwnd, sd):
+	with Image.open(os.path.join(sd, './foosonic/static/favicon.ico')).convert("RGBA") as ico:
+		hwnd.iconphoto(False, ImageTk.PhotoImage(ico))
 
 def _destroy(qin, h):
 	_ = qin.get()

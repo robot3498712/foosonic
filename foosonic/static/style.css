@@ -8,6 +8,11 @@
 	--bg-color: black;
 	--highlight-color: #9c9c00;
 }
+@media (prefers-color-scheme: dark) {
+	--text-color: #f3f3f3;
+	--bg-color: black;
+	--highlight-color: #9c9c00;
+}
 body, .dark {
 	font-family: "Lucida Console", "Courier New", monospace;
 	font-size: min(3vw, 14px);
