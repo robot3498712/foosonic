@@ -1,8 +1,8 @@
 click==8.1.7
 Flask==3.0.3
-flask-compress==1.15
-Werkzeug==3.0.2
+flask-compress==1.16
+Werkzeug==3.0.4
 InquirerPy==0.3.4
-Pillow==10.3.0
-requests==2.31.0
-tqdm==4.66.4
+Pillow==10.4.0
+requests==2.32.3
+tqdm==4.66.5

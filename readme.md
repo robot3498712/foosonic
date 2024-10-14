@@ -12,7 +12,7 @@
 * [Foobar2000](https://www.foobar2000.org/)
 
 * Python >= 3.10 | see requirements.txt
-    * py3.12 supported
+    * py3.13 supported
     * developed on and for Windows, although should work fine on other OS with a few tweaks
 
 
