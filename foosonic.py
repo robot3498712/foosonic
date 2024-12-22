@@ -648,7 +648,7 @@ def getAlbumDetailsById(id):
 			return _state.call.append(lambda: dlgMode())
 		return clear()
 
-	if state.sig == "\x08" and not args['details']:
+	if state.sig == "\x08" and state.numRes:
 		_state.call.append(lambda: listAlbums())
 		clear()
 
