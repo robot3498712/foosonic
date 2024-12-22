@@ -175,7 +175,11 @@ def dlgMode():
 def dlgAction(ids=[]):
 	if not ids: ids = state.selChoice
 
-	show(prompt.action)
+	if not len(ids) or ids[0] is None:
+		state.sig = "\x08"
+	else:
+		show(prompt.action)
+
 	if state.sig == "\x08":
 		clear()
 		return _state.call.append(lambda: listAlbums())
@@ -644,7 +648,7 @@ def getAlbumDetailsById(id):
 			return _state.call.append(lambda: dlgMode())
 		return clear()
 
-	if state.sig == "\x08":
+	if state.sig == "\x08" and not args['details']:
 		_state.call.append(lambda: listAlbums())
 		clear()
 
@@ -982,7 +986,10 @@ def show(fn):
 			shareState.sd = sd
 
 		case _:
-			p = _state.pool.popleft()
+			while True:
+				try: p = _state.pool.popleft()
+				except IndexError: sleep(0.05)
+				else: break
 			_state.iter.set()
 
 	(_, qin, qout, evParent, evChild) = p
